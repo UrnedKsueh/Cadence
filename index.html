@@ -122,6 +122,21 @@
         <span class="tool-text"><strong>Frame calculator</strong><small>Frames, timecode, twos and render planning</small></span>
         <svg class="tool-chevron" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
       </button>
+      <button type="button" class="tool-card" data-tool="focus">
+        <span class="tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 3h6"/></svg></span>
+        <span class="tool-text"><strong>Focus timer</strong><small>Work and break rounds with a daily count</small></span>
+        <svg class="tool-chevron" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+      </button>
+      <button type="button" class="tool-card" data-tool="grades">
+        <span class="tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V10M12 20V4M19 20v-7"/></svg></span>
+        <span class="tool-text"><strong>Grade calculator</strong><small>Weighted average and what you need on the rest</small></span>
+        <svg class="tool-chevron" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+      </button>
+      <button type="button" class="tool-card" data-tool="res">
+        <span class="tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 15l3-3 2 2 3-4 2 3"/></svg></span>
+        <span class="tool-text"><strong>Resolution helper</strong><small>Aspect ratios, scaled sizes and megapixels</small></span>
+        <svg class="tool-chevron" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+      </button>
       <div class="tool-card tool-soon" aria-disabled="true">
         <span class="tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span>
         <span class="tool-text"><strong>More tools coming soon</strong><small>New helpers will appear here</small></span>
@@ -178,6 +193,83 @@
     </div>
   </section>
   </div>
+  <div class="tool-view" id="tool-focus" hidden>
+  <button type="button" class="tool-back secondary" data-tool-back><svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg><span>All tools</span></button>
+  <section aria-labelledby="focusTitle">
+    <h2 id="focusTitle">Focus timer</h2>
+    <div class="levelbar" id="focusModes" role="group" aria-label="Timer length">
+      <button type="button" class="level-chip on" data-work="25" data-break="5">25 / 5</button>
+      <button type="button" class="level-chip" data-work="50" data-break="10">50 / 10</button>
+      <button type="button" class="level-chip" data-work="90" data-break="15">90 / 15</button>
+    </div>
+    <p class="focus-phase" id="focusPhase">Work</p>
+    <p class="focus-time" id="focusTime" role="timer" aria-live="off">25:00</p>
+    <div class="row">
+      <button type="button" id="focusStart">Start</button>
+      <button type="button" id="focusReset" class="secondary">Reset</button>
+    </div>
+    <p class="hint" id="focusStats" aria-live="polite"></p>
+  </section>
+  </div>
+
+  <div class="tool-view" id="tool-grades" hidden>
+  <button type="button" class="tool-back secondary" data-tool-back><svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg><span>All tools</span></button>
+  <section aria-labelledby="gradeTitle">
+    <h2 id="gradeTitle">Grade calculator</h2>
+    <p class="hint">Add each assessment with its score and weight. Leave the score empty if it is not marked yet.</p>
+    <div id="gradeRows"></div>
+    <div class="row">
+      <button type="button" id="gradeAdd" class="secondary">Add assessment</button>
+      <button type="button" id="gradeClear" class="secondary">Clear</button>
+    </div>
+    <div class="field-grid">
+      <div class="fld fld-wide">
+        <label for="gradeTarget">Target grade (%)</label>
+        <input id="gradeTarget" class="field" type="number" inputmode="decimal" min="0" max="100" step="any" value="70">
+      </div>
+    </div>
+    <div class="calc-results">
+      <p class="result tint-a" id="gradeNow" aria-live="polite"></p>
+      <p class="result tint-b" id="gradeNeed" aria-live="polite"></p>
+    </div>
+  </section>
+  </div>
+
+  <div class="tool-view" id="tool-res" hidden>
+  <button type="button" class="tool-back secondary" data-tool-back><svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg><span>All tools</span></button>
+  <section aria-labelledby="resTitle">
+    <h2 id="resTitle">Resolution helper</h2>
+    <label for="resPreset">Preset</label>
+    <select id="resPreset" class="field">
+      <option value="1920x1080">HD 1080p (1920 x 1080)</option>
+      <option value="1280x720">HD 720p (1280 x 720)</option>
+      <option value="3840x2160">4K UHD (3840 x 2160)</option>
+      <option value="1080x1920">Vertical 9:16 (1080 x 1920)</option>
+      <option value="1080x1080">Square (1080 x 1080)</option>
+      <option value="2048x858">Cinemascope (2048 x 858)</option>
+      <option value="">Custom</option>
+    </select>
+    <div class="field-grid">
+      <div class="fld">
+        <label for="resW">Width (px)</label>
+        <input id="resW" class="field" type="number" inputmode="numeric" min="1" step="1" value="1920">
+      </div>
+      <div class="fld">
+        <label for="resH">Height (px)</label>
+        <input id="resH" class="field" type="number" inputmode="numeric" min="1" step="1" value="1080">
+      </div>
+      <div class="fld fld-wide">
+        <label for="resScale">Scale to width (px)</label>
+        <input id="resScale" class="field" type="number" inputmode="numeric" min="1" step="1" placeholder="e.g. 1280">
+      </div>
+    </div>
+    <div class="calc-results">
+      <p class="result tint-a" id="resRatio" aria-live="polite"></p>
+      <p class="result tint-b" id="resMp" aria-live="polite"></p>
+      <p class="result tint-c" id="resScaled" aria-live="polite"></p>
+    </div>
+  </section>
+  </div>
   </div>
 
   <div class="panel" id="panel-showcase" role="tabpanel" aria-labelledby="tab-showcase" tabindex="-1" hidden>
@@ -225,7 +317,7 @@
   </section>
   </div>
 
-  <div class="panel" id="panel-profile" role="tabpanel" aria-labelledby="tab-profile" tabindex="-1" hidden>
+  <div class="panel" id="panel-profile" role="tabpanel" aria-label="Profile" tabindex="-1" hidden>
     <section class="profile-card" aria-label="Account">
       <span class="avatar lg" id="profileAvatar"></span>
       <div class="who">
@@ -271,7 +363,6 @@
     <button type="button" class="tab" role="tab" id="tab-projects" data-tab="projects" aria-controls="panel-projects" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5M16 4v5"/></svg><span>Projects</span></button>
     <button type="button" class="tab" role="tab" id="tab-tools" data-tab="tools" aria-controls="panel-tools" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3.5 17.5a1.8 1.8 0 0 0 2.5 2.5l5.8-5.8a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.2-.5-.5-2.2z"/></svg><span>Tools</span></button>
     <button type="button" class="tab" role="tab" id="tab-showcase" data-tab="showcase" aria-controls="panel-showcase" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9.5v5l4.5-2.5z"/></svg><span>Showcase</span></button>
-    <button type="button" class="tab" role="tab" id="tab-profile" data-tab="profile" aria-controls="panel-profile" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg><span>Profile</span></button>
   </nav>
 
   <div id="present" class="present" hidden>
@@ -284,6 +375,7 @@
 <script src="storage.js"></script>
 <script src="script.js"></script>
 <script src="tabs.js"></script>
+<script src="tools.js"></script>
 <script type="module" src="cloud.js"></script>
 </body>
 </html>

@@ -831,3 +831,16 @@ button.tool-card:hover { filter: none; border-color: var(--muted); }
   padding: 6px 0; border-top: 1px solid var(--line); font-size: 0.92rem;
 }
 #adminSection[hidden] { display: none; }
+
+/* ===== Course picker and new tools ===== */
+.course-bar { margin: 8px 0 14px; gap: 6px; }
+.course-chip { min-height: 36px; padding: 4px 12px; font-size: 0.85rem; }
+.focus-phase { margin: 4px 0 0; text-align: center; color: var(--muted); font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 0.85rem; }
+.focus-time { margin: 0 0 14px; text-align: center; font-size: 3.6rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; }
+.grade-row { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr) minmax(0, 1fr) 44px; gap: 8px; margin-bottom: 8px; align-items: center; }
+.grade-row .field { margin: 0; min-width: 0; }
+.grade-del { min-height: 44px; padding: 0; }
+@media (max-width: 420px) {
+  .grade-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 44px; }
+  .grade-row .field:first-child { grid-column: 1 / -1; }
+}

@@ -1,18 +1,23 @@
 (function () {
   "use strict";
   const tabs = Array.from(document.querySelectorAll(".tab"));
-  const names = tabs.map(function (t) { return t.dataset.tab; });
+  // Profile has no nav button: it opens from the avatar in the header.
+  const names = tabs.map(function (t) { return t.dataset.tab; }).concat("profile");
   const KEY = "cadence:lastTab";
 
   function show(name, focusTab) {
     if (names.indexOf(name) < 0) name = names[0];
+    names.forEach(function (n) {
+      document.getElementById("panel-" + n).hidden = n !== name;
+    });
     tabs.forEach(function (t) {
       const on = t.dataset.tab === name;
       t.setAttribute("aria-selected", on ? "true" : "false");
       t.tabIndex = on ? 0 : -1;
-      document.getElementById("panel-" + t.dataset.tab).hidden = !on;
       if (on && focusTab) t.focus();
     });
+    // When Profile is open no tab is selected; keep the first one reachable by keyboard.
+    if (name === "profile" && tabs.length) tabs[0].tabIndex = 0;
     try { localStorage.setItem(KEY, name); } catch (e) {}
     if (location.hash !== "#" + name) history.replaceState(null, "", "#" + name);
     window.scrollTo(0, 0);
