@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0e1319">
+<meta name="description" content="Plan shots, track deadlines and show off your finished animation work.">
+<title>Cadence</title>
+<link rel="icon" type="image/png" href="favicon.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="gate" id="gate" role="dialog" aria-modal="true" aria-labelledby="gateTitle">
+    <div class="gate-card">
+      <div class="gate-mark" aria-hidden="true"><span class="logo"></span></div>
+      <h1 id="gateTitle">Cadence</h1>
+      <p class="gate-sub">Your animation workflow, organised.</p>
+      <p class="gate-wait" id="gateWait" aria-live="polite">Checking your account…</p>
+      <div class="gate-actions" id="gateActions" hidden>
+        <button type="button" class="google-btn" id="gateSignIn">
+          <svg viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.6 5.9c4.4-4.1 7-10.1 7-17.6z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.2.8-4.7l-7.9-6.1C.9 16.4 0 20.1 0 24s.9 7.6 2.600 10.8l7.9-6.1z"/><path fill="#34A853" d="M24 48c6.500 0 11.9-2.1 15.900-5.8l-7.6-5.900c-2.100 1.400-4.900 2.300-8.300 2.300-6.300 0-11.600-4.100-13.500-9.800l-7.900 6.100C6.500 42.600 14.600 48 24 48z"/></svg>
+          <span>Continue with Google</span>
+        </button>
+        <button type="button" class="gate-skip" id="gateSkip">Continue without an account</button>
+        <p class="gate-note" id="gateNote">Sign in to back up your work and use it on other devices. Without an account, everything stays on this device.</p>
+      </div>
+    </div>
+  </div>
+
+<main id="app">
+  <header class="top">
+    <div class="brand">
+      <h1><span class="logo" aria-hidden="true"></span>Cadence</h1>
+      <p class="sub">Your animation workflow, organised.</p>
+    </div>
+    <div class="top-actions">
+    <div class="bell-wrap">
+    <button type="button" class="avatar-btn bell-btn" id="bellBtn" aria-label="Notifications" aria-haspopup="dialog" aria-expanded="false" aria-controls="notifPanel"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span class="bell-count" id="bellCount" hidden>0</span></button>
+    <div class="notif-panel" id="notifPanel" role="dialog" aria-label="Notifications" tabindex="-1" hidden>
+      <div class="notif-head">
+        <h2>Notifications</h2>
+        <button type="button" class="notif-markall" id="notifMarkAll">Mark all read</button>
+      </div>
+      <ul class="notif-list" id="notifList"></ul>
+      <p class="notif-empty" id="notifEmpty" hidden>You're all caught up.</p>
+    </div>
+    </div>
+    <button type="button" class="avatar-btn" id="avatarBtn" aria-label="Open profile"><span class="avatar" id="headerAvatar"></span></button>
+    </div>
+  </header>
+
+  <div class="panel" id="panel-home" role="tabpanel" aria-labelledby="tab-home" tabindex="-1">
+  <div id="announceBox" class="announce-box" aria-live="polite" hidden></div>
+
+  <section class="overview" aria-labelledby="overviewTitle">
+    <div class="ov-head">
+      <h2 id="overviewTitle">Overview</h2>
+      <div class="ov-filter">
+        <label for="courseFilter" class="sr">Show course</label>
+        <select id="courseFilter" class="field">
+          <option value="">All courses</option>
+        </select>
+      </div>
+    </div>
+    <div class="ov-body">
+      <div class="stats">
+        <article class="stat tint-a"><small>Due soon</small><strong id="statWeek">0</strong><span id="statWeekSub">Next 7 days</span></article>
+        <article class="stat tint-b"><small>Projects</small><strong id="statProjects">0</strong><span id="statProjectsSub">In progress</span></article>
+        <article class="stat tint-c"><small>Showcase</small><strong id="statShow">0</strong><span id="statShowSub">Finished pieces</span></article>
+      </div>
+      <article class="next" id="nextCard">
+        <small>Next up</small>
+        <strong id="nextName">Nothing due</strong>
+        <span id="nextWhen">You're all caught up.</span>
+        <button type="button" id="nextBtn">Add a deadline</button>
+      </article>
+    </div>
+    <p class="summary" id="summary" aria-live="polite"></p>
+  </section>
+
+  <section aria-labelledby="deadlinesTitle">
+    <h2 id="deadlinesTitle">Deadlines</h2>
+    <form id="deadlineForm" autocomplete="off">
+      <label for="deadlineName">What's due?</label>
+      <input id="deadlineName" class="field" placeholder="e.g. Walk cycle" required>
+      <label for="deadlineCourse">Course (optional)</label>
+      <input id="deadlineCourse" class="field" list="courses" placeholder="e.g. EMC 204">
+      <label for="deadlineDate">Due date</label>
+      <input id="deadlineDate" class="field" type="date" required>
+      <button type="submit">Add deadline</button>
+    </form>
+    <ul id="deadlineList"></ul>
+    <p class="empty" id="deadlineEmpty" hidden>Nothing due. Add your first deadline above.</p>
+  </section>
+  </div>
+
+  <div class="panel" id="panel-projects" role="tabpanel" aria-labelledby="tab-projects" tabindex="-1" hidden>
+  <section aria-labelledby="projectsTitle">
+    <h2 id="projectsTitle">Projects</h2>
+    <p class="hint">Track each project through the pipeline and break it into shots.</p>
+    <form id="projectForm" autocomplete="off">
+      <label for="projectName">Project name</label>
+      <input id="projectName" class="field" placeholder="e.g. Short film" required>
+      <label for="projectCourse">Course (optional)</label>
+      <input id="projectCourse" class="field" list="courses" placeholder="e.g. EMC 204">
+      <label for="projectDue">Due date (optional)</label>
+      <input id="projectDue" class="field" type="date">
+      <button type="submit">Add project</button>
+    </form>
+    <ul id="projectList"></ul>
+    <p class="empty" id="projectEmpty" hidden>No projects yet. Add one above.</p>
+  </section>
+  </div>
+
+  <div class="panel" id="panel-tools" role="tabpanel" aria-labelledby="tab-tools" tabindex="-1" hidden>
+  <section id="toolsHub" aria-labelledby="toolsTitle">
+    <h2 id="toolsTitle">Tools</h2>
+    <p class="muted tools-intro">Handy helpers for your animation work.</p>
+    <div class="tool-grid">
+      <button type="button" class="tool-card" data-tool="frames">
+        <span class="tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 12h2M14 12h2M8 16h2M14 16h2"/></svg></span>
+        <span class="tool-text"><strong>Frame calculator</strong><small>Frames, timecode, twos and render planning</small></span>
+        <svg class="tool-chevron" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>
+      </button>
+      <div class="tool-card tool-soon" aria-disabled="true">
+        <span class="tool-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg></span>
+        <span class="tool-text"><strong>More tools coming soon</strong><small>New helpers will appear here</small></span>
+      </div>
+    </div>
+  </section>
+
+  <div class="tool-view" id="tool-frames" hidden>
+  <button type="button" class="tool-back secondary" data-tool-back><svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg><span>All tools</span></button>
+  <section aria-labelledby="calcTitle">
+    <h2 id="calcTitle">Frame calculator</h2>
+    <div class="field-grid">
+      <div class="fld">
+        <label for="fps">Frame rate (fps)</label>
+        <select id="fps" class="field">
+          <option value="12">12</option>
+          <option value="23.976">23.976</option>
+          <option value="24" selected>24</option>
+          <option value="25">25</option>
+          <option value="29.97">29.97</option>
+          <option value="30">30</option>
+          <option value="60">60</option>
+        </select>
+      </div>
+      <div class="fld">
+        <label for="secs">Seconds</label>
+        <input id="secs" class="field" type="number" inputmode="decimal" min="0" step="any" placeholder="e.g. 5">
+      </div>
+      <div class="fld fld-wide">
+        <label for="frames">Frames</label>
+        <input id="frames" class="field" type="number" inputmode="numeric" min="0" step="1" placeholder="e.g. 120">
+      </div>
+    </div>
+    <h3 class="group-title">Render planner</h3>
+    <div class="field-grid">
+      <div class="fld">
+        <label for="minPerFrame">Minutes per frame</label>
+        <input id="minPerFrame" class="field" type="number" inputmode="decimal" min="0" step="any" placeholder="e.g. 2.5">
+      </div>
+      <div class="fld">
+        <label for="hoursPerDay">Render hours per day</label>
+        <input id="hoursPerDay" class="field" type="number" inputmode="decimal" min="1" max="24" step="any" value="8">
+      </div>
+      <div class="fld fld-wide">
+        <label for="renderDue">Render must finish by (optional)</label>
+        <input id="renderDue" class="field" type="date">
+      </div>
+    </div>
+    <div class="calc-results">
+      <p class="result tint-a" id="timecode" aria-live="polite"></p>
+      <p class="result tint-b" id="twos" aria-live="polite"></p>
+      <p class="result tint-c" id="renderTime" aria-live="polite"></p>
+      <p class="result plan" id="renderPlan" aria-live="polite"></p>
+    </div>
+  </section>
+  </div>
+  </div>
+
+  <div class="panel" id="panel-showcase" role="tabpanel" aria-labelledby="tab-showcase" tabindex="-1" hidden>
+  <section aria-labelledby="showcaseTitle">
+    <h2 id="showcaseTitle">Showcase</h2>
+    <p class="hint">Your finished work. Videos stay on YouTube, Vimeo or Drive; this saves the link and a small thumbnail.</p>
+    <div class="row">
+      <button type="button" id="presentBtn" class="secondary">Present mode</button>
+    </div>
+    <div class="levelbar" id="levelBar" role="group" aria-label="Filter by year level"></div>
+    <label for="showFilter">Show tool</label>
+    <select id="showFilter" class="field"></select>
+    <details class="shots" id="showAdd">
+      <summary>Add a piece</summary>
+      <form id="showForm" autocomplete="off">
+        <label for="showTitle">Title</label>
+        <input id="showTitle" class="field" required maxlength="120" placeholder="e.g. Walk cycle reel">
+        <label for="showUrl">Video link (YouTube, Vimeo, Drive)</label>
+        <input id="showUrl" class="field" type="url" placeholder="https://">
+        <label for="showCourse">Course (optional)</label>
+        <input id="showCourse" class="field" list="courses">
+        <label for="showLevel">Year level</label>
+        <select id="showLevel" class="field">
+          <option value="">Auto (from course code)</option>
+          <option value="1">1st year</option>
+          <option value="2">2nd year</option>
+          <option value="3">3rd year</option>
+          <option value="4">4th year</option>
+        </select>
+        <label for="showYear">Year made</label>
+        <input id="showYear" class="field" type="number" inputmode="numeric" min="1990" max="2100" placeholder="2026">
+        <label for="showTools">Tools (comma separated)</label>
+        <input id="showTools" class="field" placeholder="Blender, After Effects">
+        <label for="showRole">Your role</label>
+        <input id="showRole" class="field" placeholder="Animator, layout, compositing">
+        <label for="showNote">What you learned / instructor feedback</label>
+        <input id="showNote" class="field" maxlength="400">
+        <label for="showThumb">Thumbnail image (optional)</label>
+        <input id="showThumb" class="field" type="file" accept="image/*">
+        <button type="submit">Add to Showcase</button>
+      </form>
+    </details>
+    <ul id="showList"></ul>
+    <p class="empty" id="showEmpty" hidden>Nothing here yet. Add a finished piece, or send a Delivered project here.</p>
+  </section>
+  </div>
+
+  <div class="panel" id="panel-profile" role="tabpanel" aria-labelledby="tab-profile" tabindex="-1" hidden>
+    <section class="profile-card" aria-label="Account">
+      <span class="avatar lg" id="profileAvatar"></span>
+      <div class="who">
+        <strong id="profileName">Guest</strong>
+        <small id="profileEmail">Not signed in</small>
+      </div>
+    </section>
+    <section aria-labelledby="syncTitle">
+      <h2 id="syncTitle">Account and sync</h2>
+      <p class="hint" id="syncStatus" aria-live="polite">Saved on this device only.</p>
+      <div class="row">
+        <button type="button" id="signInBtn" hidden>Sign in with Google</button>
+        <button type="button" class="secondary" id="signOutBtn" hidden>Sign out</button>
+      </div>
+    </section>
+  <section id="adminSection" aria-labelledby="adminTitle" hidden>
+    <h2 id="adminTitle">Admin: announcements</h2>
+    <p class="hint">Posts show as a banner on every student's Home tab until they dismiss it.</p>
+    <form id="announceForm" autocomplete="off">
+      <label for="announceTitle">Title</label>
+      <input id="announceTitle" class="field" required maxlength="80" placeholder="e.g. Critique moved to Friday">
+      <label for="announceBody">Message (optional)</label>
+      <textarea id="announceBody" class="field" rows="3" maxlength="500"></textarea>
+      <button type="submit" id="announceSubmit">Post announcement</button>
+    </form>
+    <p class="hint" id="announceMsg" aria-live="polite"></p>
+    <ul id="announceAdminList" class="announce-admin-list"></ul>
+  </section>
+  <section aria-labelledby="backupTitle">
+    <h2 id="backupTitle">Backup</h2>
+    <p class="hint">Your data is always saved in this browser. Export a copy now and then, especially before clearing browser data.</p>
+    <div class="row">
+      <button type="button" id="exportBtn">Export</button>
+      <button type="button" id="importBtn" class="secondary">Import</button>
+    </div>
+    <input id="importFile" type="file" accept="application/json,.json" hidden>
+    <p class="hint" id="backupMsg" aria-live="polite"></p>
+  </section>
+  </div>
+
+  <nav class="tabbar" role="tablist" aria-label="Sections">
+    <button type="button" class="tab" role="tab" id="tab-home" data-tab="home" aria-controls="panel-home" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg><span>Home</span></button>
+    <button type="button" class="tab" role="tab" id="tab-projects" data-tab="projects" aria-controls="panel-projects" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 9h18M8 4v5M16 4v5"/></svg><span>Projects</span></button>
+    <button type="button" class="tab" role="tab" id="tab-tools" data-tab="tools" aria-controls="panel-tools" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3.5 17.5a1.8 1.8 0 0 0 2.5 2.5l5.8-5.8a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.2-.5-.5-2.2z"/></svg><span>Tools</span></button>
+    <button type="button" class="tab" role="tab" id="tab-showcase" data-tab="showcase" aria-controls="panel-showcase" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M10 9.5v5l4.5-2.5z"/></svg><span>Showcase</span></button>
+    <button type="button" class="tab" role="tab" id="tab-profile" data-tab="profile" aria-controls="panel-profile" aria-selected="false" tabindex="-1"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-4 4-6 8-6s7 2 8 6"/></svg><span>Profile</span></button>
+  </nav>
+
+  <div id="present" class="present" hidden>
+    <div class="present-bar"><strong>Showcase</strong><button type="button" id="presentClose">Close</button></div>
+    <div id="presentBody" class="present-body"></div>
+  </div>
+  <datalist id="courses"></datalist>
+</main>
+<script src="gate.js"></script>
+<script src="storage.js"></script>
+<script src="script.js"></script>
+<script src="tabs.js"></script>
+<script type="module" src="cloud.js"></script>
+</body>
+</html>

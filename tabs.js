@@ -1,0 +1,65 @@
+(function () {
+  "use strict";
+  const tabs = Array.from(document.querySelectorAll(".tab"));
+  const names = tabs.map(function (t) { return t.dataset.tab; });
+  const KEY = "cadence:lastTab";
+
+  function show(name, focusTab) {
+    if (names.indexOf(name) < 0) name = names[0];
+    tabs.forEach(function (t) {
+      const on = t.dataset.tab === name;
+      t.setAttribute("aria-selected", on ? "true" : "false");
+      t.tabIndex = on ? 0 : -1;
+      document.getElementById("panel-" + t.dataset.tab).hidden = !on;
+      if (on && focusTab) t.focus();
+    });
+    try { localStorage.setItem(KEY, name); } catch (e) {}
+    if (location.hash !== "#" + name) history.replaceState(null, "", "#" + name);
+    window.scrollTo(0, 0);
+  }
+
+  window.showTab = function (name) { show(name, false); };
+
+  tabs.forEach(function (t, i) {
+    t.addEventListener("click", function () { show(t.dataset.tab, false); });
+    t.addEventListener("keydown", function (e) {
+      let next = -1;
+      if (e.key === "ArrowRight") next = (i + 1) % tabs.length;
+      else if (e.key === "ArrowLeft") next = (i - 1 + tabs.length) % tabs.length;
+      else if (e.key === "Home") next = 0;
+      else if (e.key === "End") next = tabs.length - 1;
+      if (next < 0) return;
+      e.preventDefault();
+      show(tabs[next].dataset.tab, true);
+    });
+  });
+
+  // Tools hub: open a tool from its card, go back to the list
+  const hub = document.getElementById("toolsHub");
+  const views = Array.from(document.querySelectorAll(".tool-view"));
+  function openTool(name) {
+    const view = name ? document.getElementById("tool-" + name) : null;
+    hub.hidden = !!view;
+    views.forEach(function (v) { v.hidden = v !== view; });
+    window.scrollTo(0, 0);
+  }
+  document.querySelectorAll("[data-tool]").forEach(function (b) {
+    b.addEventListener("click", function () { openTool(b.dataset.tool); });
+  });
+  document.querySelectorAll("[data-tool-back]").forEach(function (b) {
+    b.addEventListener("click", function () { openTool(null); });
+  });
+  tabs.forEach(function (t) {
+    if (t.dataset.tab === "tools") t.addEventListener("click", function () { openTool(null); });
+  });
+
+  document.getElementById("avatarBtn").addEventListener("click", function () { show("profile", false); });
+  window.addEventListener("hashchange", function () { show(location.hash.slice(1), false); });
+
+  let start = location.hash.slice(1);
+  if (start === "calc") start = "tools";
+  if (names.indexOf(start) < 0) {
+    try { start = localStorage.getItem(KEY) || ""; } catch (e) { start = ""; }
+  }
+  show(start, false);
+})();

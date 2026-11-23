@@ -1,0 +1,1414 @@
+"use strict";
+
+// ===== Storage =====
+const KEYS = { deadlines: "deadlines", projects: "projects", showcase: "showcase" };
+
+// All saving goes through storage.js
+const load = Storage.load;
+const store = Storage.store;
+
+function uid() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+}
+
+// Clean up data from older versions or imports so the rest of the code can trust it
+function cleanDeadline(d) {
+  if (!d || typeof d.name !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(d.date)) return null;
+  return {
+    id: typeof d.id === "string" ? d.id : uid(),
+    name: d.name.trim().slice(0, 120),
+    date: d.date,
+    course: typeof d.course === "string" ? d.course.trim().slice(0, 60) : "",
+    done: d.done === true
+  };
+}
+
+// Pipeline stages follow the usual animation workflow (pre-production -> production -> post)
+const STAGES = ["Script", "Storyboard", "Animatic", "Layout", "Animation",
+  "Lighting & render", "Compositing", "Sound & edit", "Delivered"];
+const SHOT_STATUS = ["To do", "Animating", "Review", "Done"];
+const FPS_CHOICES = [12, 23.976, 24, 25, 29.97, 30, 60];
+const PRINCIPLES = ["Squash & stretch", "Anticipation", "Staging", "Straight ahead & pose to pose",
+  "Follow through & overlapping action", "Slow in & slow out", "Arcs", "Secondary action",
+  "Timing", "Exaggeration", "Solid drawing", "Appeal"];
+
+function cleanShot(s) {
+  if (!s || typeof s.name !== "string" || s.name.trim() === "") return null;
+  const num = function (v, lo, hi) { return Math.min(hi, Math.max(lo, Math.round(Number(v) || 0))); };
+  const log = Array.isArray(s.log) ? s.log.filter(function (x) {
+    return x && typeof x.text === "string" && x.text.trim() !== "";
+  }).map(function (x) { return { v: num(x.v, 1, 999), text: x.text.trim().slice(0, 200) }; }).slice(0, 50) : [];
+  const checks = Array.isArray(s.checks) ? s.checks.filter(function (n, k, arr) {
+    return Number.isInteger(n) && n >= 0 && n < PRINCIPLES.length && arr.indexOf(n) === k;
+  }) : [];
+  return {
+    id: typeof s.id === "string" ? s.id : uid(),
+    name: s.name.trim().slice(0, 80),
+    status: SHOT_STATUS.indexOf(s.status) >= 0 ? s.status : "To do",
+    frames: num(s.frames, 0, 100000),
+    version: num(s.version, 1, 999),
+    log: log,
+    checks: checks
+  };
+}
+
+const CHECKLIST_TEMPLATE = ["Script", "Character & prop designs", "Research & references",
+  "Storyboard", "Animatic", "Sound & voice plan"];
+
+function cleanItem(c) {
+  if (!c || typeof c.label !== "string" || c.label.trim() === "") return null;
+  return { id: typeof c.id === "string" ? c.id : uid(), label: c.label.trim().slice(0, 80), done: c.done === true };
+}
+
+function starterChecklist() {
+  return CHECKLIST_TEMPLATE.map(function (label) { return cleanItem({ label: label }); });
+}
+
+function cleanProject(p) {
+  if (!p || typeof p.name !== "string") return null;
+  const last = STAGES.length - 1;
+  // Older saves only had a 0-100 progress number: map it onto a stage
+  const oldProgress = Math.min(100, Math.max(0, Number(p.progress) || 0));
+  const stage = Number.isInteger(p.stage)
+    ? Math.min(last, Math.max(0, p.stage))
+    : Math.round(oldProgress / 100 * last);
+  return {
+    id: typeof p.id === "string" ? p.id : uid(),
+    name: p.name.trim().slice(0, 120),
+    course: typeof p.course === "string" ? p.course.trim().slice(0, 60) : "",
+    due: /^\d{4}-\d{2}-\d{2}$/.test(p.due) ? p.due : "",
+    stage: stage,
+    progress: Math.round(stage / last * 100),
+    fps: FPS_CHOICES.indexOf(Number(p.fps)) >= 0 ? Number(p.fps) : 24,
+    target: Math.min(36000, Math.max(0, Number(p.target) || 0)),
+    shots: Array.isArray(p.shots) ? p.shots.map(cleanShot).filter(Boolean).slice(0, 200) : [],
+    checklist: Array.isArray(p.checklist) ? p.checklist.map(cleanItem).filter(Boolean).slice(0, 50) : []
+  };
+}
+
+let deadlines = load(KEYS.deadlines).map(cleanDeadline).filter(Boolean);
+let projects = load(KEYS.projects).map(cleanProject).filter(Boolean);
+let showcase = load(KEYS.showcase).map(cleanShow).filter(Boolean);
+let courseFilter = "";
+
+// ===== Shared helpers =====
+const $ = function (id) { return document.getElementById(id); };
+
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function plural(n, word) {
+  return n + " " + word + (n === 1 ? "" : "s");
+}
+
+function matchesFilter(item) {
+  return courseFilter === "" || item.course === courseFilter;
+}
+
+// Built-in course suggestions (always offered in the Course fields)
+const PRESET_COURSES = [
+  "EMC 100 \u2013 Freehand and Digital Drawing",
+  "EMC 204 \u2013 Principles of 2D Animation",
+  "EMC 207 \u2013 Principles of 3D Animation",
+  "EMC 301 \u2013 Design and Production Process"
+];
+
+function refreshCourses() {
+  const names = new Set();
+  deadlines.concat(projects, showcase).forEach(function (item) {
+    if (item.course) names.add(item.course);
+  });
+  const sorted = Array.from(names).sort(function (a, b) { return a.localeCompare(b); });
+
+  const datalist = $("courses");
+  datalist.innerHTML = "";
+  // Suggestions = presets first, then any other course you have typed before
+  PRESET_COURSES.forEach(function (name) {
+    const option = document.createElement("option");
+    option.value = name;
+    datalist.appendChild(option);
+  });
+  const filter = $("courseFilter");
+  filter.innerHTML = "";
+  filter.appendChild(new Option("All courses", ""));
+
+  sorted.forEach(function (name) {
+    if (PRESET_COURSES.indexOf(name) === -1) {
+      const option = document.createElement("option");
+      option.value = name;
+      datalist.appendChild(option);
+    }
+    filter.appendChild(new Option(name, name));
+  });
+
+  // If the filtered course no longer exists, fall back to everything
+  if (courseFilter !== "" && !names.has(courseFilter)) courseFilter = "";
+  filter.value = courseFilter;
+}
+
+// ===== Inline editing =====
+let editingId = null;
+
+// Builds a small form for editing one item. fields: [{key, label, type, list, required}]
+function editRow(item, className, fields, onSave) {
+  const form = el("form", className + " edit-form");
+  form.autocomplete = "off";
+  const inputs = {};
+
+  fields.forEach(function (f) {
+    const label = el("label", "", f.label);
+    let input;
+    if (f.options) {
+      input = document.createElement("select");
+      f.options.forEach(function (o) { input.appendChild(new Option(o[1], o[0])); });
+      input.value = String(item[f.key] || "");
+    } else {
+      input = document.createElement("input");
+      input.type = f.type || "text";
+      input.value = item[f.key] || "";
+      if (f.list) input.setAttribute("list", f.list);
+    }
+    input.className = "field";
+    if (f.required) input.required = true;
+    label.appendChild(input);
+    form.appendChild(label);
+    inputs[f.key] = input;
+  });
+
+  const row = el("div", "row");
+  const save = el("button", "", "Save");
+  save.type = "submit";
+  const cancel = el("button", "secondary", "Cancel");
+  cancel.type = "button";
+  cancel.onclick = function () { editingId = null; renderAll(); };
+  row.appendChild(save);
+  row.appendChild(cancel);
+  form.appendChild(row);
+
+  form.onsubmit = function (event) {
+    event.preventDefault();
+    const values = {};
+    fields.forEach(function (f) { values[f.key] = inputs[f.key].value; });
+    onSave(values);
+    editingId = null;
+    renderAll();
+  };
+
+  setTimeout(function () { inputs[fields[0].key].focus(); }, 0);
+  return form;
+}
+
+function editButton(label, id) {
+  const btn = el("button", "remove", "✎");
+  btn.type = "button";
+  btn.setAttribute("aria-label", "Edit \"" + label + "\"");
+  btn.onclick = function () { editingId = id; renderAll(); };
+  return btn;
+}
+
+// ===== Deadlines =====
+function daysLeft(dateText) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const due = new Date(dateText + "T00:00:00");
+  return Math.round((due - today) / 86400000);
+}
+
+function describe(left) {
+  if (left < 0) return "Overdue by " + plural(Math.abs(left), "day");
+  if (left === 0) return "Due today";
+  if (left === 1) return "Due tomorrow";
+  return "Due in " + left + " days";
+}
+
+function renderDeadlines() {
+  const list = $("deadlineList");
+  list.innerHTML = "";
+
+  // Open items first (soonest on top), finished items sink to the bottom
+  const visible = deadlines.filter(matchesFilter).sort(function (a, b) {
+    if (a.done !== b.done) return a.done ? 1 : -1;
+    return a.date.localeCompare(b.date);
+  });
+
+  $("deadlineEmpty").hidden = visible.length > 0;
+
+  visible.forEach(function (d) {
+    if (d.id === editingId) {
+      const li = el("li", "deadline editing");
+      li.appendChild(editRow(d, "deadline-edit", [
+        { key: "name", label: "What's due?", required: true },
+        { key: "course", label: "Course", list: "courses" },
+        { key: "date", label: "Due date", type: "date", required: true }
+      ], function (v) {
+        const fixed = cleanDeadline({ id: d.id, name: v.name, date: v.date, course: v.course, done: d.done });
+        if (fixed && fixed.name) {
+          d.name = fixed.name; d.date = fixed.date; d.course = fixed.course;
+          store(KEYS.deadlines, deadlines);
+        }
+      }));
+      list.appendChild(li);
+      return;
+    }
+
+    const left = daysLeft(d.date);
+
+    const li = el("li", "deadline");
+    if (d.done) li.classList.add("done");
+    else if (left < 0) li.classList.add("late");
+    else if (left <= 2) li.classList.add("soon");
+
+    const check = document.createElement("input");
+    check.type = "checkbox";
+    check.checked = d.done;
+    check.setAttribute("aria-label", "Mark \"" + d.name + "\" as done");
+    check.onchange = function () {
+      d.done = check.checked;
+      store(KEYS.deadlines, deadlines);
+      renderAll();
+    };
+
+    const info = el("div", "info");
+    info.appendChild(el("span", "name", d.name));
+    info.appendChild(el("small", "", describe(left)));
+    if (d.course) info.appendChild(el("span", "chip", d.course));
+
+    const remove = el("button", "remove", "✕");
+    remove.type = "button";
+    remove.setAttribute("aria-label", "Delete \"" + d.name + "\"");
+    remove.onclick = function () {
+      deadlines = deadlines.filter(function (x) { return x.id !== d.id; });
+      store(KEYS.deadlines, deadlines);
+      renderAll();
+    };
+
+    const when = new Date(d.date + "T00:00:00");
+    const tile = el("div", "date-tile");
+    tile.appendChild(el("b", "", String(when.getDate())));
+    tile.appendChild(el("small", "", when.toLocaleDateString(undefined, { month: "short" })));
+
+    const status = el("span", "status", d.done ? "Done" : left < 0 ? "Overdue" : left <= 2 ? "Soon" : "On track");
+    status.classList.add(d.done ? "ok" : left < 0 ? "bad" : left <= 2 ? "warn" : "ok");
+    info.appendChild(status);
+
+    li.appendChild(check);
+    li.appendChild(tile);
+    li.appendChild(info);
+    li.appendChild(editButton(d.name, d.id));
+    li.appendChild(remove);
+    list.appendChild(li);
+  });
+}
+
+$("deadlineForm").onsubmit = function (event) {
+  event.preventDefault();
+  const name = $("deadlineName").value.trim();
+  const date = $("deadlineDate").value;
+  if (name === "" || date === "") return;
+
+  deadlines.push(cleanDeadline({
+    name: name,
+    date: date,
+    course: $("deadlineCourse").value,
+    done: false
+  }));
+  store(KEYS.deadlines, deadlines);
+
+  $("deadlineName").value = "";
+  $("deadlineDate").value = "";
+  // keep the course filled in, since you often add several deadlines per class
+  renderAll();
+  $("deadlineName").focus();
+};
+
+// ===== Projects =====
+function renderProjects() {
+  const list = $("projectList");
+  list.innerHTML = "";
+
+  const visible = projects.filter(matchesFilter);
+  $("projectEmpty").hidden = visible.length > 0;
+
+  visible.forEach(function (p) {
+    if (p.id === editingId) {
+      const li = el("li", "project editing");
+      li.appendChild(editRow(p, "project-edit", [
+        { key: "name", label: "Project name", required: true },
+        { key: "course", label: "Course", list: "courses" },
+        { key: "due", label: "Due date (optional)", type: "date" }
+      ], function (v) {
+        const fixed = cleanProject({ id: p.id, name: v.name, course: v.course, due: v.due, stage: p.stage, fps: p.fps, target: p.target, shots: p.shots, checklist: p.checklist });
+        if (fixed && fixed.name) {
+          p.name = fixed.name; p.course = fixed.course; p.due = fixed.due;
+          store(KEYS.projects, projects);
+        }
+      }));
+      list.appendChild(li);
+      return;
+    }
+
+    const li = el("li", "project");
+
+    const top = el("div", "project-top");
+    const percent = el("span", "percent", p.progress + "%");
+    const remove = el("button", "remove", "✕");
+    remove.type = "button";
+    remove.setAttribute("aria-label", "Delete \"" + p.name + "\"");
+    remove.onclick = function () {
+      projects = projects.filter(function (x) { return x.id !== p.id; });
+      store(KEYS.projects, projects);
+      renderAll();
+    };
+
+    const title = el("div", "pname");
+    title.appendChild(el("span", "pname-text", p.name));
+    const tags = el("div", "tags");
+    tags.appendChild(el("span", "status stage-chip", STAGES[p.stage]));
+    if (p.course) tags.appendChild(el("span", "chip", p.course));
+    title.appendChild(tags);
+
+    const tileColors = ["tint-a", "tint-b", "tint-c"];
+    const tile = el("div", "proj-tile " + tileColors[(p.name.length + p.stage) % 3], (p.name.trim().charAt(0) || "P").toUpperCase());
+
+    top.appendChild(tile);
+    top.appendChild(title);
+    top.appendChild(percent);
+    top.appendChild(editButton(p.name, p.id));
+    top.appendChild(remove);
+
+    const bar = el("div", "bar");
+    const fill = el("div", "fill");
+    fill.style.width = p.progress + "%";
+    bar.appendChild(fill);
+
+    const stageLabel = el("label", "", "Pipeline stage");
+    const stageSelect = document.createElement("select");
+    stageSelect.className = "field stage";
+    STAGES.forEach(function (name, i) { stageSelect.appendChild(new Option((i + 1) + ". " + name, i)); });
+    stageSelect.value = p.stage;
+    stageSelect.onchange = function () {
+      p.stage = Number(stageSelect.value);
+      p.progress = Math.round(p.stage / (STAGES.length - 1) * 100);
+      store(KEYS.projects, projects);
+      renderAll();
+    };
+    stageLabel.appendChild(stageSelect);
+
+    li.appendChild(top);
+    if (p.due) {
+      const left = daysLeft(p.due);
+      const due = el("small", "pdue", describe(left));
+      if (p.progress < 100) {
+        if (left < 0) due.classList.add("late");
+        else if (left <= 2) due.classList.add("soon");
+      }
+      li.appendChild(due);
+    }
+    li.appendChild(bar);
+    li.appendChild(stageLabel);
+    if (p.stage === STAGES.length - 1) {
+      const already = showcase.some(function (s) { return s.title === p.name && s.course === p.course; });
+      const toShow = el("button", "secondary", already ? "In Showcase" : "Add to Showcase");
+      toShow.type = "button";
+      toShow.disabled = already;
+      toShow.onclick = function () { addFromProject(p); };
+      li.appendChild(toShow);
+    }
+    li.appendChild(checklistPanel(p));
+    li.appendChild(shotsPanel(p));
+    list.appendChild(li);
+  });
+}
+
+const openShots = new Set();
+const openLists = new Set();
+
+const openShotDetail = new Set();
+
+function saveProjects() {
+  store(KEYS.projects, projects);
+  renderAll();
+}
+
+function numberInput(value, min, onChange, label) {
+  const input = document.createElement("input");
+  input.className = "field";
+  input.type = "number";
+  input.inputMode = "decimal";
+  input.min = min;
+  input.step = "any";
+  input.value = value || "";
+  input.setAttribute("aria-label", label);
+  input.onchange = function () { onChange(Number(input.value) || 0); };
+  return input;
+}
+
+function shotDetail(p, shot) {
+  const det = document.createElement("details");
+  det.className = "subdet";
+  det.open = openShotDetail.has(shot.id);
+  det.ontoggle = function () {
+    if (det.open) openShotDetail.add(shot.id); else openShotDetail.delete(shot.id);
+  };
+  det.appendChild(el("summary", "", "Notes (" + shot.log.length + ") and 12 principles (" + shot.checks.length + "/12)"));
+
+  shot.log.forEach(function (entry) {
+    const row = el("div", "shot");
+    row.appendChild(el("span", "name", "v" + entry.v + ": " + entry.text));
+    const del = el("button", "remove", "✕");
+    del.type = "button";
+    del.setAttribute("aria-label", "Delete note");
+    del.onclick = function () {
+      shot.log = shot.log.filter(function (x) { return x !== entry; });
+      saveProjects();
+    };
+    row.appendChild(del);
+    det.appendChild(row);
+  });
+
+  const form = el("form", "shot-add");
+  form.autocomplete = "off";
+  const input = document.createElement("input");
+  input.className = "field";
+  input.placeholder = "Critique for v" + shot.version + ", e.g. arc too floaty";
+  input.setAttribute("aria-label", "New feedback note");
+  input.maxLength = 200;
+  const add = el("button", "secondary", "Add note");
+  add.type = "submit";
+  form.appendChild(input);
+  form.appendChild(add);
+  form.onsubmit = function (event) {
+    event.preventDefault();
+    if (input.value.trim() === "") return;
+    shot.log.push({ v: shot.version, text: input.value.trim().slice(0, 200) });
+    openShotDetail.add(shot.id);
+    saveProjects();
+  };
+  det.appendChild(form);
+
+  det.appendChild(el("p", "hint", "Self-check before you submit this shot:"));
+  const grid = el("div", "principles");
+  PRINCIPLES.forEach(function (name, i) {
+    const label = el("label", "pr");
+    const box = document.createElement("input");
+    box.type = "checkbox";
+    box.checked = shot.checks.indexOf(i) >= 0;
+    box.onchange = function () {
+      shot.checks = box.checked ? shot.checks.concat(i) : shot.checks.filter(function (n) { return n !== i; });
+      openShotDetail.add(shot.id);
+      saveProjects();
+    };
+    label.appendChild(box);
+    label.appendChild(document.createTextNode(" " + name));
+    grid.appendChild(label);
+  });
+  det.appendChild(grid);
+  return det;
+}
+
+function shotsPanel(p) {
+  const done = p.shots.filter(function (x) { return x.status === "Done"; }).length;
+  const details = document.createElement("details");
+  details.className = "shots";
+  details.open = openShots.has(p.id);
+  details.ontoggle = function () {
+    if (details.open) openShots.add(p.id); else openShots.delete(p.id);
+  };
+  details.appendChild(el("summary", "", "Shots (" + done + "/" + p.shots.length + " done)"));
+
+  // Runtime budget: total frames against the target film length
+  const frames = p.shots.reduce(function (n, s) { return n + s.frames; }, 0);
+  const secs = frames / p.fps;
+  const fpsLabel = el("label", "", "Project frame rate");
+  const fpsSel = document.createElement("select");
+  fpsSel.className = "field";
+  FPS_CHOICES.forEach(function (f) { fpsSel.appendChild(new Option(String(f) + " fps", f)); });
+  fpsSel.value = p.fps;
+  fpsSel.onchange = function () { p.fps = Number(fpsSel.value); openShots.add(p.id); saveProjects(); };
+  fpsLabel.appendChild(fpsSel);
+  const targetLabel = el("label", "", "Target film length (seconds)");
+  targetLabel.appendChild(numberInput(p.target, 0, function (v) {
+    p.target = Math.min(36000, Math.max(0, v)); openShots.add(p.id); saveProjects();
+  }, "Target film length in seconds"));
+  details.appendChild(fpsLabel);
+  details.appendChild(targetLabel);
+
+  const over = p.target > 0 && secs > p.target;
+  let text = "Planned: " + secs.toFixed(1) + "s (" + plural(frames, "frame") + ")";
+  if (p.target > 0) {
+    text += " of " + p.target + "s target, " +
+      (over ? (secs - p.target).toFixed(1) + "s over" : (p.target - secs).toFixed(1) + "s left");
+  }
+  const bar = el("div", "bar");
+  const fill = el("div", "fill" + (over ? " over" : ""));
+  fill.style.width = (p.target > 0 ? Math.min(100, secs / p.target * 100) : 0) + "%";
+  bar.appendChild(fill);
+  details.appendChild(bar);
+  details.appendChild(el("p", "result", text));
+
+  p.shots.forEach(function (shot) {
+    const wrap = el("div", "shot-wrap");
+    const row = el("div", "shot");
+    if (shot.status === "Done") row.classList.add("done");
+    row.appendChild(el("span", "name", shot.name));
+
+    const sel = document.createElement("select");
+    sel.className = "field status";
+    sel.setAttribute("aria-label", "Status of shot \"" + shot.name + "\"");
+    SHOT_STATUS.forEach(function (st) { sel.appendChild(new Option(st, st)); });
+    sel.value = shot.status;
+    sel.onchange = function () { shot.status = sel.value; saveProjects(); };
+
+    const del = el("button", "remove", "✕");
+    del.type = "button";
+    del.setAttribute("aria-label", "Delete shot \"" + shot.name + "\"");
+    del.onclick = function () {
+      p.shots = p.shots.filter(function (x) { return x.id !== shot.id; });
+      saveProjects();
+    };
+    row.appendChild(sel);
+    row.appendChild(del);
+
+    const meta = el("div", "shot-meta");
+    meta.appendChild(numberInput(shot.frames, 0, function (v) {
+      shot.frames = Math.min(100000, Math.round(v)); openShots.add(p.id); saveProjects();
+    }, "Frames in shot \"" + shot.name + "\""));
+    meta.appendChild(el("small", "", "frames = " + (shot.frames / p.fps).toFixed(1) + "s"));
+    meta.appendChild(numberInput(shot.version, 1, function (v) {
+      shot.version = Math.min(999, Math.max(1, Math.round(v))); openShots.add(p.id); saveProjects();
+    }, "Version of shot \"" + shot.name + "\""));
+    meta.appendChild(el("small", "", "version"));
+
+    wrap.appendChild(row);
+    wrap.appendChild(meta);
+    wrap.appendChild(shotDetail(p, shot));
+    details.appendChild(wrap);
+  });
+
+  const form = el("form", "shot-add");
+  form.autocomplete = "off";
+  const input = document.createElement("input");
+  input.className = "field";
+  input.placeholder = "e.g. SH010 Hero walks in";
+  input.setAttribute("aria-label", "New shot name");
+  input.maxLength = 80;
+  const add = el("button", "secondary", "Add shot");
+  add.type = "submit";
+  form.appendChild(input);
+  form.appendChild(add);
+  form.onsubmit = function (event) {
+    event.preventDefault();
+    const shot = cleanShot({ name: input.value, status: "To do" });
+    if (!shot) return;
+    p.shots.push(shot);
+    openShots.add(p.id);
+    saveProjects();
+  };
+  details.appendChild(form);
+  return details;
+}
+
+function checklistPanel(p) {
+  const done = p.checklist.filter(function (x) { return x.done; }).length;
+  const details = document.createElement("details");
+  details.className = "shots";
+  details.open = openLists.has(p.id);
+  details.ontoggle = function () {
+    if (details.open) openLists.add(p.id); else openLists.delete(p.id);
+  };
+  details.appendChild(el("summary", "", "Pre-production checklist (" + done + "/" + p.checklist.length + ")"));
+
+  p.checklist.forEach(function (item) {
+    const row = el("div", "shot");
+    if (item.done) row.classList.add("done");
+    const check = document.createElement("input");
+    check.type = "checkbox";
+    check.checked = item.done;
+    check.setAttribute("aria-label", "Mark \"" + item.label + "\" as done");
+    check.onchange = function () {
+      item.done = check.checked;
+      store(KEYS.projects, projects);
+      renderAll();
+    };
+    const del = el("button", "remove", "✕");
+    del.type = "button";
+    del.setAttribute("aria-label", "Delete \"" + item.label + "\"");
+    del.onclick = function () {
+      p.checklist = p.checklist.filter(function (x) { return x.id !== item.id; });
+      store(KEYS.projects, projects);
+      renderAll();
+    };
+    row.appendChild(check);
+    row.appendChild(el("span", "name", item.label));
+    row.appendChild(del);
+    details.appendChild(row);
+  });
+
+  if (p.checklist.length === 0) {
+    const starter = el("button", "secondary", "Add starter checklist");
+    starter.type = "button";
+    starter.onclick = function () {
+      p.checklist = starterChecklist();
+      openLists.add(p.id);
+      store(KEYS.projects, projects);
+      renderAll();
+    };
+    details.appendChild(starter);
+  }
+
+  const form = el("form", "shot-add");
+  form.autocomplete = "off";
+  const input = document.createElement("input");
+  input.className = "field";
+  input.placeholder = "e.g. Color script";
+  input.setAttribute("aria-label", "New checklist item");
+  input.maxLength = 80;
+  const add = el("button", "secondary", "Add item");
+  add.type = "submit";
+  form.appendChild(input);
+  form.appendChild(add);
+  form.onsubmit = function (event) {
+    event.preventDefault();
+    const item = cleanItem({ label: input.value });
+    if (!item) return;
+    p.checklist.push(item);
+    openLists.add(p.id);
+    store(KEYS.projects, projects);
+    renderAll();
+  };
+  details.appendChild(form);
+  return details;
+}
+
+$("projectForm").onsubmit = function (event) {
+  event.preventDefault();
+  const name = $("projectName").value.trim();
+  if (name === "") return;
+
+  projects.push(cleanProject({
+    name: name,
+    course: $("projectCourse").value,
+    due: $("projectDue").value,
+    stage: 0,
+    shots: [],
+    checklist: starterChecklist()
+  }));
+  store(KEYS.projects, projects);
+
+  $("projectName").value = "";
+  $("projectDue").value = "";
+  renderAll();
+  $("projectName").focus();
+};
+
+
+// ===== Notifications =====
+// Built from what is already saved: open deadlines and unfinished projects that are
+// overdue or due within a week. Read state is remembered per item and per due date.
+const NOTIF_KEY = "cadence:notifRead";
+let notifRead = (function () {
+  try {
+    const raw = JSON.parse(localStorage.getItem(NOTIF_KEY));
+    return Array.isArray(raw) ? raw : [];
+  } catch (error) { return []; }
+})();
+
+function saveNotifRead() {
+  try { localStorage.setItem(NOTIF_KEY, JSON.stringify(notifRead)); } catch (error) { /* unavailable */ }
+}
+
+function buildNotifications() {
+  const items = [];
+  function bucket(left) { return left < 0 ? "late" : left === 0 ? "today" : "soon"; }
+  deadlines.forEach(function (d) {
+    if (d.done) return;
+    const left = daysLeft(d.date);
+    if (left > 7) return;
+    items.push({ key: "dl:" + d.id + ":" + d.date + ":" + bucket(left), kind: "deadline", id: d.id,
+      title: d.name, left: left, course: d.course, late: left < 0 });
+  });
+  projects.forEach(function (p) {
+    if (!p.due || p.progress >= 100) return;
+    const left = daysLeft(p.due);
+    if (left > 7) return;
+    items.push({ key: "pj:" + p.id + ":" + p.due + ":" + bucket(left), kind: "project", id: p.id,
+      title: p.name, left: left, course: p.course, late: left < 0 });
+  });
+  return items.sort(function (a, b) { return a.left - b.left; });
+}
+
+function setNotifOpen(open) {
+  const panel = $("notifPanel");
+  panel.hidden = !open;
+  $("bellBtn").setAttribute("aria-expanded", open ? "true" : "false");
+  if (open) panel.focus();
+}
+
+function renderNotifications() {
+  const items = buildNotifications();
+  // Forget read marks for items that no longer apply (done, deleted, rescheduled)
+  const live = items.map(function (n) { return n.key; });
+  const pruned = notifRead.filter(function (k) { return live.indexOf(k) >= 0; });
+  if (pruned.length !== notifRead.length) { notifRead = pruned; saveNotifRead(); }
+
+  const unread = items.filter(function (n) { return notifRead.indexOf(n.key) < 0; });
+  const badge = $("bellCount");
+  badge.textContent = unread.length > 9 ? "9+" : String(unread.length);
+  badge.hidden = unread.length === 0;
+  $("bellBtn").setAttribute("aria-label", unread.length
+    ? "Notifications, " + unread.length + " unread" : "Notifications");
+
+  const list = $("notifList");
+  list.innerHTML = "";
+  $("notifEmpty").hidden = items.length > 0;
+  $("notifMarkAll").hidden = unread.length === 0;
+
+  items.forEach(function (n) {
+    const isUnread = notifRead.indexOf(n.key) < 0;
+    const li = el("li", "notif-item" + (isUnread ? " unread" : "") + (n.late ? " late" : ""));
+
+    const main = el("button", "notif-main");
+    main.type = "button";
+    main.appendChild(el("span", "notif-dot"));
+    const body = el("span", "notif-body");
+    body.appendChild(el("strong", "", n.title));
+    const kind = n.kind === "project" ? "Project" : "Deadline";
+    body.appendChild(el("small", "", kind + " · " + describe(n.left) + (n.course ? " · " + n.course : "")));
+    main.appendChild(body);
+    main.onclick = function () {
+      if (notifRead.indexOf(n.key) < 0) { notifRead.push(n.key); saveNotifRead(); }
+      setNotifOpen(false);
+      renderNotifications();
+      if (n.kind === "project") window.showTab("projects");
+      else { window.showTab("home"); $("deadlineList").scrollIntoView({ block: "start" }); }
+    };
+    li.appendChild(main);
+
+    if (n.kind === "deadline") {
+      const done = el("button", "notif-done", "Done");
+      done.type = "button";
+      done.setAttribute("aria-label", "Mark \"" + n.title + "\" as done");
+      done.onclick = function () {
+        const d = deadlines.find(function (x) { return x.id === n.id; });
+        if (!d) return;
+        d.done = true;
+        store(KEYS.deadlines, deadlines);
+        renderAll();
+      };
+      li.appendChild(done);
+    }
+    list.appendChild(li);
+  });
+}
+
+$("bellBtn").onclick = function (event) {
+  event.stopPropagation();
+  setNotifOpen($("notifPanel").hidden);
+};
+$("notifPanel").onclick = function (event) { event.stopPropagation(); };
+$("notifMarkAll").onclick = function () {
+  buildNotifications().forEach(function (n) {
+    if (notifRead.indexOf(n.key) < 0) notifRead.push(n.key);
+  });
+  saveNotifRead();
+  renderNotifications();
+};
+document.addEventListener("click", function () { if (!$("notifPanel").hidden) setNotifOpen(false); });
+document.addEventListener("keydown", function (event) {
+  if (event.key === "Escape" && !$("notifPanel").hidden) { setNotifOpen(false); $("bellBtn").focus(); }
+});
+document.querySelectorAll(".tab").forEach(function (t) {
+  t.addEventListener("click", function () { setNotifOpen(false); });
+});
+
+// ===== Overview =====
+function renderDashboard() {
+  const open = deadlines.filter(function (d) { return !d.done && matchesFilter(d); }).sort(function (a, b) {
+    return a.date.localeCompare(b.date);
+  });
+  const late = open.filter(function (d) { return daysLeft(d.date) < 0; });
+  const week = open.filter(function (d) {
+    const left = daysLeft(d.date);
+    return left >= 0 && left <= 7;
+  });
+  const active = projects.filter(function (p) { return matchesFilter(p) && p.progress < 100; });
+  let shotsOpen = 0;
+  active.forEach(function (p) {
+    shotsOpen += p.shots.filter(function (x) { return x.status !== "Done"; }).length;
+  });
+
+  renderNotifications();
+  $("statWeek").textContent = week.length;
+  $("statWeekSub").textContent = late.length ? late.length + " overdue" : "Next 7 days";
+  $("statProjects").textContent = active.length;
+  $("statProjectsSub").textContent = shotsOpen ? plural(shotsOpen, "shot") + " left" : "In progress";
+  $("statShow").textContent = showcase.filter(matchesFilter).length;
+
+  const card = $("nextCard");
+  const button = $("nextBtn");
+  card.classList.remove("late");
+  if (open.length === 0) {
+    $("nextName").textContent = "Nothing due";
+    $("nextWhen").textContent = "You're all caught up.";
+    button.textContent = "Add a deadline";
+    button.onclick = function () {
+      $("deadlineForm").scrollIntoView({ block: "center" });
+      $("deadlineName").focus();
+    };
+    return;
+  }
+  const first = open[0];
+  const left = daysLeft(first.date);
+  if (left < 0) card.classList.add("late");
+  $("nextName").textContent = first.name;
+  $("nextWhen").textContent = describe(left) + (first.course ? " · " + first.course : "");
+  button.textContent = "See all deadlines";
+  button.onclick = function () {
+    $("deadlineList").scrollIntoView({ block: "start" });
+  };
+}
+
+function renderSummary() {
+  renderDashboard();
+  const open = deadlines.filter(function (d) { return !d.done && matchesFilter(d); });
+  const late = open.filter(function (d) { return daysLeft(d.date) < 0; });
+  const week = open.filter(function (d) {
+    const left = daysLeft(d.date);
+    return left >= 0 && left <= 7;
+  });
+  const active = projects.filter(function (p) { return matchesFilter(p) && p.progress < 100; });
+  const projectsLate = active.filter(function (p) { return p.due && daysLeft(p.due) < 0; });
+
+  if (open.length === 0 && active.length === 0) {
+    $("summary").textContent = "All clear.";
+    return;
+  }
+
+  const parts = [plural(open.length, "open deadline")];
+  if (late.length) parts.push(late.length + " overdue");
+  if (week.length) parts.push(week.length + " due within 7 days");
+  parts.push(plural(active.length, "project") + " in progress");
+  if (projectsLate.length) parts.push(projectsLate.length + " past its due date");
+  let shotsOpen = 0;
+  active.forEach(function (p) {
+    shotsOpen += p.shots.filter(function (x) { return x.status !== "Done"; }).length;
+  });
+  if (shotsOpen) parts.push(plural(shotsOpen, "shot") + " left");
+  $("summary").textContent = parts.join(", ") + ".";
+}
+
+$("courseFilter").onchange = function () {
+  courseFilter = $("courseFilter").value;
+  renderAll();
+};
+
+function renderAll() {
+  refreshCourses();
+  renderDeadlines();
+  renderProjects();
+  renderShowcase();
+  renderSummary();
+}
+
+// Days change while the tab sits open (or the phone sleeps): refresh when you come back
+document.addEventListener("visibilitychange", function () {
+  if (!document.hidden) renderAll();
+});
+
+// ===== Frame calculator =====
+const fpsSelect = $("fps");
+const secsInput = $("secs");
+const framesInput = $("frames");
+const minInput = $("minPerFrame");
+
+function pad(n) {
+  return String(n).padStart(2, "0");
+}
+
+function formatDuration(totalMinutes) {
+  const mins = Math.round(totalMinutes);
+  if (mins < 60) return plural(mins, "minute");
+  const hours = Math.floor(mins / 60);
+  const rest = mins % 60;
+  if (hours < 24) return hours + " h " + rest + " min";
+  const days = Math.floor(hours / 24);
+  return plural(days, "day") + " " + (hours % 24) + " h";
+}
+
+function setResult(id, label, value) {
+  const node = $(id);
+  node.textContent = "";
+  if (!value) return;
+  node.appendChild(el("small", "", label));
+  node.appendChild(el("strong", "", value));
+}
+
+function showResults() {
+  const fps = Number(fpsSelect.value);
+  const frames = Number(framesInput.value);
+
+  if (!frames || frames < 0) {
+    setResult("timecode", "", "");
+    setResult("twos", "", "");
+    setResult("renderTime", "", "");
+    setResult("renderPlan", "", "");
+    return;
+  }
+
+  // Timecode counts whole frames per second (23.976 -> 24, 29.97 -> 30), non-drop-frame
+  const nominal = Math.round(fps);
+  const totalSeconds = Math.floor(frames / nominal);
+  const hh = Math.floor(totalSeconds / 3600);
+  const mm = Math.floor((totalSeconds % 3600) / 60);
+  const ss = totalSeconds % 60;
+  const ff = Math.round(frames) % nominal;
+  setResult("timecode", "Timecode", pad(hh) + ":" + pad(mm) + ":" + pad(ss) + ":" + pad(ff));
+
+  setResult("twos", "Drawings", Math.round(frames) + " on ones · " + Math.ceil(frames / 2) + " on twos");
+
+  const perFrame = Number(minInput.value);
+  setResult("renderTime", "Render time", perFrame > 0 ? formatDuration(frames * perFrame) : "");
+
+  // Render planner: work back from the due date, with a 20% safety buffer
+  const plan = $("renderPlan");
+  plan.classList.remove("late");
+  const dueDate = $("renderDue").value;
+  const hours = Number($("hoursPerDay").value);
+  if (!(perFrame > 0) || !dueDate || !(hours > 0)) { setResult("renderPlan", "", ""); return; }
+  const daysNeeded = Math.ceil((frames * perFrame / 60) / hours * 1.2);
+  const start = addDays(dueDate, -daysNeeded);
+  const spare = daysLeft(start);
+  setResult("renderPlan", "Render schedule",
+    "Needs about " + plural(daysNeeded, "render day") + " (with 20% buffer). Start rendering by " + start +
+    (spare < 0 ? " - that's " + plural(-spare, "day") + " ago. Consider fewer frames, lower samples, or a render farm."
+      : spare === 0 ? " - that's today." : " (in " + plural(spare, "day") + ")."));
+  plan.classList.toggle("late", spare < 0);
+}
+
+function addDays(dateText, n) {
+  const d = new Date(dateText + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+}
+
+secsInput.oninput = function () {
+  const fps = Number(fpsSelect.value);
+  framesInput.value = secsInput.value === "" ? "" : Math.round(Number(secsInput.value) * fps);
+  showResults();
+};
+
+framesInput.oninput = function () {
+  const fps = Number(fpsSelect.value);
+  secsInput.value =
+    framesInput.value === "" ? "" : Math.round((Number(framesInput.value) / fps) * 100) / 100;
+  showResults();
+};
+
+minInput.oninput = showResults;
+$("renderDue").oninput = showResults;
+$("renderDue").onchange = showResults;
+$("hoursPerDay").oninput = showResults;
+
+fpsSelect.onchange = function () {
+  // Keep whichever value you typed last in sync with the new frame rate
+  if (secsInput.value !== "") secsInput.oninput();
+  else framesInput.oninput();
+};
+
+// Replaces everything on screen and in storage (used by import and cloud sync)
+function applyData(d, p, sc) {
+  deadlines = d.map(cleanDeadline).filter(Boolean);
+  projects = p.map(cleanProject).filter(Boolean);
+  showcase = sc.map(cleanShow).filter(Boolean).slice(0, 40);
+  store(KEYS.showcase, showcase);
+  store(KEYS.deadlines, deadlines);
+  store(KEYS.projects, projects);
+  renderAll();
+}
+
+// ===== Backup =====
+function backupMessage(text) {
+  $("backupMsg").textContent = text;
+}
+
+$("exportBtn").onclick = function () {
+  const data = { app: "cadence", version: 3, deadlines: deadlines, projects: projects, showcase: showcase };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "cadence-" + new Date().toISOString().slice(0, 10) + ".json";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  backupMessage("Exported " + plural(deadlines.length, "deadline") + ", " + plural(projects.length, "project") + " and " + plural(showcase.length, "showcase piece") + ".");
+};
+
+$("importBtn").onclick = function () {
+  $("importFile").click();
+};
+
+$("importFile").onchange = function () {
+  const file = $("importFile").files[0];
+  $("importFile").value = "";
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function () {
+    let data;
+    try {
+      data = JSON.parse(reader.result);
+    } catch (error) {
+      backupMessage("That file isn't valid JSON. Import a file exported from this app.");
+      return;
+    }
+    if (!data || !Array.isArray(data.deadlines) || !Array.isArray(data.projects)) {
+      backupMessage("That file doesn't look like a Cadence export.");
+      return;
+    }
+
+    const newDeadlines = data.deadlines.map(cleanDeadline).filter(Boolean);
+    const newProjects = data.projects.map(cleanProject).filter(Boolean);
+    const newShowcase = Array.isArray(data.showcase) ? data.showcase.map(cleanShow).filter(Boolean).slice(0, 40) : [];
+    const ok = confirm(
+      "Replace your current data with " + plural(newDeadlines.length, "deadline") +
+      ", " + plural(newProjects.length, "project") + " and " + plural(newShowcase.length, "showcase piece") + " from this file?"
+    );
+    if (!ok) return;
+
+    applyData(newDeadlines, newProjects, newShowcase);
+    backupMessage("Imported.");
+  };
+  reader.onerror = function () {
+    backupMessage("Couldn't read that file. Try again.");
+  };
+  reader.readAsText(file);
+};
+
+// ===== Showcase =====
+const openPlayers = new Set();
+let showTool = "";
+let showLevel = 0; // 0 = all year levels
+
+const LEVELS = { 1: "1st year", 2: "2nd year", 3: "3rd year", 4: "4th year" };
+
+// EMC 100 -> 1st year, EMC 204 -> 2nd year, EMC 301 -> 3rd year (first digit of the code)
+function levelFromCourse(course) {
+  const m = /\b([1-4])\d\d\b/.exec(String(course || ""));
+  return m ? Number(m[1]) : 0;
+}
+
+function safeUrl(text) {
+  try {
+    const u = new URL(String(text).trim());
+    return u.protocol === "https:" || u.protocol === "http:" ? u.href : "";
+  } catch (error) {
+    return "";
+  }
+}
+
+// YouTube and Vimeo links can play inside the app; anything else opens in a new tab
+function embedUrl(text) {
+  try {
+    const u = new URL(text);
+    const host = u.hostname.replace(/^www\./, "");
+    let id = "";
+    if (host === "youtu.be") id = u.pathname.slice(1);
+    else if (host === "youtube.com" || host === "m.youtube.com") {
+      id = u.pathname === "/watch" ? u.searchParams.get("v") : (u.pathname.match(/^\/(?:embed|shorts)\/([\w-]+)/) || [])[1];
+    }
+    if (id && /^[\w-]{6,}$/.test(id)) return "https://www.youtube-nocookie.com/embed/" + id;
+    const vimeo = host === "vimeo.com" && u.pathname.match(/^\/(\d+)/);
+    if (vimeo) return "https://player.vimeo.com/video/" + vimeo[1];
+  } catch (error) { /* not a link */ }
+  return "";
+}
+
+function cleanShow(s) {
+  if (!s || typeof s.title !== "string" || s.title.trim() === "") return null;
+  const raw = Array.isArray(s.tools) ? s.tools : typeof s.tools === "string" ? s.tools.split(",") : [];
+  const year = Math.round(Number(s.year));
+  const picked = Math.round(Number(s.level));
+  const text = function (v, n) { return typeof v === "string" ? v.trim().slice(0, n) : ""; };
+  return {
+    id: typeof s.id === "string" ? s.id : uid(),
+    title: s.title.trim().slice(0, 120),
+    course: text(s.course, 60),
+    year: year >= 1990 && year <= 2100 ? year : "",
+    level: picked >= 1 && picked <= 4 ? picked : levelFromCourse(s.course),
+    url: safeUrl(s.url),
+    tools: raw.map(function (t) { return String(t).trim().slice(0, 30); }).filter(Boolean).slice(0, 8),
+    role: text(s.role, 60),
+    note: text(s.note, 400),
+    thumb: typeof s.thumb === "string" && s.thumb.length < 60000 &&
+      /^data:image\/jpeg;base64,[A-Za-z0-9+\/=]+$/.test(s.thumb) ? s.thumb : ""
+  };
+}
+
+// Shrinks a picked image to a small JPEG so many thumbnails fit in browser storage
+function makeThumb(file, done) {
+  const reader = new FileReader();
+  reader.onerror = function () { done(""); };
+  reader.onload = function () {
+    const img = new Image();
+    img.onerror = function () { done(""); };
+    img.onload = function () {
+      const scale = Math.min(1, 320 / img.width);
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(img.width * scale));
+      canvas.height = Math.max(1, Math.round(img.height * scale));
+      canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+      done(canvas.toDataURL("image/jpeg", 0.7));
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function visibleShowcase() {
+  return showcase.filter(matchesFilter).filter(function (s) {
+    return showTool === "" || s.tools.indexOf(showTool) >= 0;
+  }).filter(function (s) {
+    return showLevel === 0 || s.level === showLevel;
+  });
+}
+
+function showCard(s, big) {
+  const card = el("div", "show-card" + (big ? " big" : ""));
+  if (s.thumb) {
+    const img = document.createElement("img");
+    img.src = s.thumb;
+    img.alt = "Thumbnail for " + s.title;
+    card.appendChild(img);
+  }
+  const head = el("div", "show-head");
+  if (!s.thumb) {
+    const tileColors = ["tint-a", "tint-b", "tint-c"];
+    head.appendChild(el("div", "proj-tile " + tileColors[(s.title.length + (Number(s.year) || 0)) % 3],
+      (s.title.trim().charAt(0) || "S").toUpperCase()));
+  }
+  const titleBox = el("div", "show-title");
+  titleBox.appendChild(el("strong", "", s.title));
+  if (s.role) titleBox.appendChild(el("small", "", s.role));
+  const tags = el("div", "tags");
+  if (s.level) tags.appendChild(el("span", "status stage-chip", LEVELS[s.level]));
+  if (s.year) tags.appendChild(el("span", "chip", String(s.year)));
+  if (s.course) tags.appendChild(el("span", "chip", s.course));
+  if (tags.childNodes.length) titleBox.appendChild(tags);
+  head.appendChild(titleBox);
+  card.appendChild(head);
+  if (s.tools.length) {
+    const tools = el("div", "tools");
+    s.tools.forEach(function (t) { tools.appendChild(el("span", "chip", t)); });
+    card.appendChild(tools);
+  }
+  if (s.note) card.appendChild(el("p", "note", s.note));
+
+  const embed = embedUrl(s.url);
+  if (embed && openPlayers.has(s.id)) {
+    const frame = document.createElement("iframe");
+    frame.className = "player";
+    frame.src = embed;
+    frame.title = "Video: " + s.title;
+    frame.setAttribute("allow", "fullscreen; picture-in-picture");
+    frame.allowFullscreen = true;
+    card.appendChild(frame);
+  }
+
+  const actions = el("div", "row");
+  if (embed) {
+    const play = el("button", "", openPlayers.has(s.id) ? "Hide video" : "Play here");
+    play.type = "button";
+    play.onclick = function () {
+      if (openPlayers.has(s.id)) openPlayers.delete(s.id); else openPlayers.add(s.id);
+      renderAll();
+    };
+    actions.appendChild(play);
+  }
+  if (s.url) {
+    const link = el("a", "btn secondary", "Open link");
+    link.href = s.url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    actions.appendChild(link);
+  } else if (!big) {
+    card.appendChild(el("small", "hint", "No video link yet. Tap ✎ to add one."));
+  }
+  if (!big) {
+    actions.appendChild(editButton(s.title, s.id));
+    const del = el("button", "remove", "✕");
+    del.type = "button";
+    del.setAttribute("aria-label", "Delete \"" + s.title + "\"");
+    del.onclick = function () {
+      showcase = showcase.filter(function (x) { return x.id !== s.id; });
+      store(KEYS.showcase, showcase);
+      renderAll();
+    };
+    actions.appendChild(del);
+  }
+  card.appendChild(actions);
+  return card;
+}
+
+// Sorts by year level (1st to 4th, unassigned last) and adds a heading before each group
+function groupByLevel(items, makeHeading, makeItem) {
+  const sorted = items.slice().sort(function (a, b) {
+    return (a.level || 9) - (b.level || 9);
+  });
+  let last = -1;
+  sorted.forEach(function (s) {
+    if (showLevel === 0 && s.level !== last) {
+      const count = sorted.filter(function (x) { return x.level === s.level; }).length;
+      makeHeading((s.level ? LEVELS[s.level] : "No year level") + " \u00b7 " + count);
+      last = s.level;
+    }
+    makeItem(s);
+  });
+}
+
+function renderLevelBar() {
+  const bar = $("levelBar");
+  bar.innerHTML = "";
+  const base = showcase.filter(matchesFilter).filter(function (s) {
+    return showTool === "" || s.tools.indexOf(showTool) >= 0;
+  });
+  [0, 1, 2, 3, 4].forEach(function (n) {
+    const count = n === 0 ? base.length : base.filter(function (s) { return s.level === n; }).length;
+    const btn = el("button", "level-chip" + (showLevel === n ? " on" : ""),
+      (n === 0 ? "All" : LEVELS[n]) + " (" + count + ")");
+    btn.type = "button";
+    btn.setAttribute("aria-pressed", showLevel === n ? "true" : "false");
+    btn.onclick = function () { showLevel = n; renderAll(); };
+    bar.appendChild(btn);
+  });
+}
+
+function renderShowcase() {
+  const tools = new Set();
+  showcase.forEach(function (s) { s.tools.forEach(function (t) { tools.add(t); }); });
+  if (showTool !== "" && !tools.has(showTool)) showTool = "";
+  const filter = $("showFilter");
+  filter.innerHTML = "";
+  filter.appendChild(new Option("All tools", ""));
+  Array.from(tools).sort(function (a, b) { return a.localeCompare(b); })
+    .forEach(function (t) { filter.appendChild(new Option(t, t)); });
+  filter.value = showTool;
+
+  renderLevelBar();
+
+  const list = $("showList");
+  list.innerHTML = "";
+  const visible = visibleShowcase();
+  $("showEmpty").hidden = visible.length > 0;
+  groupByLevel(visible, function (text) {
+    list.appendChild(el("li", "show-group", text));
+  }, function (s) {
+    const li = el("li", "show-item");
+    if (s.id === editingId) {
+      li.classList.add("editing");
+      li.appendChild(editRow(s, "show-edit", [
+        { key: "title", label: "Title", required: true },
+        { key: "url", label: "Video link (YouTube, Vimeo, Drive)" },
+        { key: "course", label: "Course", list: "courses" },
+        { key: "level", label: "Year level", options: [["", "Auto (from course code)"], ["1", "1st year"], ["2", "2nd year"], ["3", "3rd year"], ["4", "4th year"]] },
+        { key: "year", label: "Year made" },
+        { key: "tools", label: "Tools (comma separated)" },
+        { key: "role", label: "Your role" },
+        { key: "note", label: "What you learned / feedback" }
+      ], function (v) {
+        const fixed = cleanShow({ id: s.id, title: v.title, url: v.url, course: v.course, year: v.year, level: v.level,
+          tools: v.tools, role: v.role, note: v.note, thumb: s.thumb });
+        if (fixed) {
+          Object.keys(fixed).forEach(function (k) { s[k] = fixed[k]; });
+          store(KEYS.showcase, showcase);
+        }
+      }));
+    } else {
+      li.appendChild(showCard(s, false));
+    }
+    list.appendChild(li);
+  });
+
+  const box = $("present");
+  if (!box.hidden) {
+    const body = $("presentBody");
+    body.innerHTML = "";
+    if (visible.length === 0) body.appendChild(el("p", "empty", "Nothing to present yet."));
+    groupByLevel(visible, function (text) {
+      body.appendChild(el("h3", "show-group", text));
+    }, function (s) { body.appendChild(showCard(s, true)); });
+  }
+}
+
+function addFromProject(p) {
+  if (showcase.length >= 40) { alert("The Showcase is full (40 pieces). Remove one first."); return; }
+  const entry = cleanShow({ title: p.name, course: p.course, year: new Date().getFullYear() });
+  showcase.push(entry);
+  store(KEYS.showcase, showcase);
+  editingId = entry.id;
+  renderAll();
+  if (window.showTab) window.showTab("showcase");
+  $("showList").scrollIntoView({ block: "center" });
+}
+
+$("showForm").onsubmit = function (event) {
+  event.preventDefault();
+  const file = $("showThumb").files[0];
+  const finish = function (thumb) {
+    const entry = cleanShow({
+      title: $("showTitle").value, course: $("showCourse").value, year: $("showYear").value, level: $("showLevel").value,
+      url: $("showUrl").value, tools: $("showTools").value, role: $("showRole").value,
+      note: $("showNote").value, thumb: thumb
+    });
+    if (!entry) return;
+    if (showcase.length >= 40) { alert("The Showcase is full (40 pieces). Remove one first."); return; }
+    showcase.push(entry);
+    if (!store(KEYS.showcase, showcase)) {
+      showcase.pop();
+      alert("Browser storage is full. Export a backup and remove something first.");
+      return;
+    }
+    $("showForm").reset();
+    renderAll();
+  };
+  if (file) makeThumb(file, finish); else finish("");
+};
+
+$("showFilter").onchange = function () {
+  showTool = $("showFilter").value;
+  renderAll();
+};
+
+function setPresent(on) {
+  const box = $("present");
+  box.hidden = !on;
+  document.body.classList.toggle("locked", on);
+  if (on) {
+    renderAll();
+    if (box.requestFullscreen) box.requestFullscreen().catch(function () { /* optional */ });
+  } else if (document.fullscreenElement && document.exitFullscreen) {
+    document.exitFullscreen().catch(function () { /* optional */ });
+  }
+}
+
+$("presentBtn").onclick = function () { setPresent(true); };
+$("presentClose").onclick = function () { setPresent(false); };
+document.addEventListener("keydown", function (event) {
+  if (event.key === "Escape" && !$("present").hidden) setPresent(false);
+});
+document.addEventListener("fullscreenchange", function () {
+  if (!document.fullscreenElement && !$("present").hidden) setPresent(false);
+});
+
+// ===== Start =====
+store(KEYS.deadlines, deadlines); // saves migrated data (ids, course field)
+store(KEYS.projects, projects);
+store(KEYS.showcase, showcase);
+renderAll();
+
+
