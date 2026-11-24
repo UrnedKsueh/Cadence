@@ -1218,3 +1218,8 @@ strong.tap:hover { text-decoration: underline; }
 .sp-edit-form button { justify-self: start; }
 .sp-stage-top .sp-move { min-width: 36px; }
 .sp-stage-top .sp-move:disabled { opacity: 0.35; }
+
+.sp-status[data-status="Needs changes"] { color: var(--soon); }
+.sp-due { background-color: var(--panel); border: 1px solid var(--line); margin-top: 6px; }
+.sp-late { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 55%, var(--line)); }
+.sp-due-row { margin-top: 6px; gap: 6px; }

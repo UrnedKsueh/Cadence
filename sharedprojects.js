@@ -8,9 +8,15 @@ import { getFirestore, doc, getDoc, collection, query, where, orderBy, limit, ge
 const db = getFirestore(getApp());
 const $ = function (id) { return document.getElementById(id); };
 
-const PIPELINE = ["Script", "Storyboard", "Animatic", "Layout", "Animation",
-  "Lighting & render", "Compositing", "Sound & edit", "Delivered"];
-const STATUS = ["To do", "In progress", "Review", "Done"];
+const TEMPLATES = [
+  { name: "Animation pipeline", stages: ["Script", "Storyboard", "Animatic", "Layout", "Animation", "Lighting & render", "Compositing", "Sound & edit", "Delivered"] },
+  { name: "3D character", stages: ["Concept", "Modeling", "Texturing", "Rigging", "Animation", "Render", "Delivered"] },
+  { name: "Motion graphics", stages: ["Brief", "Style frames", "Storyboard", "Animation", "Sound", "Review", "Delivered"] },
+  { name: "Short film", stages: ["Concept", "Script", "Storyboard", "Animatic", "Production", "Post", "Delivered"] },
+  { name: "Empty project", stages: [] }
+];
+const STATUS = ["To do", "In progress", "Review", "Needs changes", "Done"];
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_STAGES = 30;
 const HANDLE_RE = /^[a-z0-9_]{3,20}$/;
 
@@ -40,6 +46,19 @@ function nameOf(p, uid) {
 }
 function canEdit(p, stage) { return admin || (me && stage.assignee === me.uid); }
 function doneCount(p) { return p.stages.filter(function (s) { return s.status === "Done"; }).length; }
+function daysUntil(text) {
+  const t = new Date();
+  t.setHours(0, 0, 0, 0);
+  return Math.round((new Date(text + "T00:00:00") - t) / 86400000);
+}
+function dueLabel(text) {
+  const left = daysUntil(text);
+  if (left < 0) return "Overdue by " + Math.abs(left) + (Math.abs(left) === 1 ? " day" : " days");
+  if (left === 0) return "Due today";
+  if (left === 1) return "Due tomorrow";
+  return "Due " + new Date(text + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+function stageDue(p, s) { return s.due || p.due || ""; }
 function percent(p) { return p.stages.length ? Math.round(doneCount(p) / p.stages.length * 100) : 0; }
 
 function safeLink(v) {
@@ -56,6 +75,7 @@ function clean(p) {
       name: String(s.name || "Stage").slice(0, 60),
       assignee: String(s.assignee || ""),
       status: STATUS.indexOf(s.status) >= 0 ? s.status : "To do",
+      due: DATE_RE.test(String(s.due || "")) ? String(s.due) : "",
       note: String(s.note || "").slice(0, 300),
       link: safeLink(s.link)
     };
@@ -167,7 +187,27 @@ function stageRow(p, stage, i) {
   const ready = me && stage.assignee === me.uid && stage.status === "To do" &&
     (i === 0 || p.stages[i - 1].status === "Done");
   if (ready) row.appendChild(mk("span", "chip sp-ready", "Ready for you"));
+  if (me && stage.assignee === me.uid && stage.status === "Needs changes") row.appendChild(mk("span", "chip sp-ready", "Changes requested"));
   li.appendChild(row);
+
+  if (admin) {
+    const dueRow = mk("div", "sp-row sp-due-row");
+    const dueIn = mk("input", "field sp-select");
+    dueIn.type = "date";
+    dueIn.value = stage.due;
+    dueIn.setAttribute("aria-label", "Due date for " + stage.name);
+    dueIn.onchange = async function () {
+      stage.due = dueIn.value;
+      if (await patch(p, { stages: p.stages })) render();
+    };
+    dueRow.appendChild(mk("small", "hint", "Due"));
+    dueRow.appendChild(dueIn);
+    li.appendChild(dueRow);
+  }
+  if (stage.due) {
+    const late = stage.status !== "Done" && daysUntil(stage.due) < 0;
+    li.appendChild(mk("span", "chip sp-due" + (late ? " sp-late" : ""), dueLabel(stage.due)));
+  }
 
   if (stage.note) li.appendChild(mk("p", "sp-note", stage.note));
   if (stage.link) {
@@ -279,7 +319,7 @@ function stageAdder(p) {
     const name = input.value.trim();
     if (!name) return;
     if (p.stages.length >= MAX_STAGES) { say("A project can have up to " + MAX_STAGES + " stages."); return; }
-    const stages = p.stages.concat({ id: newId(), name: name.slice(0, 60), assignee: "", status: "To do" });
+    const stages = p.stages.concat({ id: newId(), name: name.slice(0, 60), assignee: "", status: "To do", due: "" });
     if (await patch(p, { stages: stages })) render();
   };
   return form;
@@ -348,12 +388,13 @@ function myTasks() {
     p.stages.forEach(function (s, i) {
       if (s.assignee !== me.uid || s.status === "Done") return;
       const ready = s.status === "To do" && (i === 0 || p.stages[i - 1].status === "Done");
-      out.push({ p: p, s: s, ready: ready });
+      out.push({ p: p, s: s, ready: ready, fix: s.status === "Needs changes" });
     });
   });
   out.sort(function (a, b) {
     if (a.ready !== b.ready) return a.ready ? -1 : 1;
-    const da = a.p.due || "9999", db2 = b.p.due || "9999";
+    if (a.fix !== b.fix) return a.fix ? -1 : 1;
+    const da = stageDue(a.p, a.s) || "9999", db2 = stageDue(b.p, b.s) || "9999";
     return da < db2 ? -1 : da > db2 ? 1 : 0;
   });
   return out;
@@ -372,10 +413,12 @@ function renderTasks() {
     btn.type = "button";
     const main = mk("span", "my-task-main");
     main.appendChild(mk("strong", "", t.s.name));
-    main.appendChild(mk("small", "", t.p.name + (t.p.due ? " \u00b7 Due " + t.p.due : "")));
+    const d = stageDue(t.p, t.s);
+    main.appendChild(mk("small", "", t.p.name + (d ? " \u00b7 " + dueLabel(d) : "")));
     btn.appendChild(main);
     const tags = mk("span", "tags");
     if (t.ready) tags.appendChild(mk("span", "chip sp-ready", "Ready for you"));
+    if (t.fix) tags.appendChild(mk("span", "chip sp-ready", "Changes requested"));
     const chip = mk("span", "status sp-status", t.s.status);
     chip.dataset.status = t.s.status;
     tags.appendChild(chip);
@@ -411,22 +454,23 @@ function render() {
     : "Nothing here yet. Projects you're added to will appear here.";
 }
 
+TEMPLATES.forEach(function (t, i) { $("sharedTemplate").appendChild(new Option(t.stages.length ? t.name + " (" + t.stages.length + " stages)" : t.name, String(i))); });
+
 $("sharedForm").onsubmit = async function (e) {
   e.preventDefault();
   if (!admin) return;
   const name = $("sharedName").value.trim();
   if (!name) return;
   const btn = e.submitter; if (btn) btn.disabled = true;
-  const stages = $("sharedPipeline").checked
-    ? PIPELINE.map(function (n) { return { id: newId(), name: n, assignee: "", status: "To do" }; })
-    : [];
+  const tpl = TEMPLATES[Number($("sharedTemplate").value)] || TEMPLATES[0];
+  const stages = tpl.stages.map(function (n) { return { id: newId(), name: n, assignee: "", status: "To do", due: "" }; });
   try {
     const ref = await addDoc(collection(db, "sharedProjects"), {
       name: name.slice(0, 80), course: $("sharedCourse").value.trim().slice(0, 40), due: $("sharedDue").value || "",
       members: [], names: {}, stages: stages, createdBy: me.uid, createdAt: serverTimestamp(), updatedAt: Date.now()
     });
     $("sharedForm").reset();
-    $("sharedPipeline").checked = true;
+    $("sharedTemplate").value = "0";
     $("sharedAdd").open = false;
     open.add(ref.id);
     await load(true);
@@ -435,7 +479,7 @@ $("sharedForm").onsubmit = async function (e) {
   }
   if (btn) btn.disabled = false;
 };
-$("sharedCancel").onclick = function () { $("sharedForm").reset(); $("sharedPipeline").checked = true; $("sharedAdd").open = false; };
+$("sharedCancel").onclick = function () { $("sharedForm").reset(); $("sharedTemplate").value = "0"; $("sharedAdd").open = false; };
 
 document.addEventListener("visibilitychange", function () { if (!document.hidden) load(false); });
 

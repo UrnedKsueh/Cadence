@@ -853,9 +853,16 @@ function buildNotifications() {
       p.stages.forEach(function (s, i) {
         if (s.assignee !== uid || s.status === "Done") return;
         const ready = s.status === "To do" && (i === 0 || p.stages[i - 1].status === "Done");
-        items.push({ key: (ready ? "sr:" : "sa:") + p.id + ":" + s.id, kind: "task", id: p.id,
-          title: s.name + " \u00b7 " + p.name, left: ready ? -2000 : -1000,
-          note: ready ? "Ready for you" : "Assigned to you", late: false });
+        const fix = s.status === "Needs changes";
+        items.push({ key: (fix ? "sn:" : ready ? "sr:" : "sa:") + p.id + ":" + s.id, kind: "task", id: p.id,
+          title: s.name + " \u00b7 " + p.name, left: fix ? -3000 : ready ? -2000 : -1000,
+          note: fix ? "Changes requested" : ready ? "Ready for you" : "Assigned to you", late: false });
+        const due = s.due || p.due;
+        if (due) {
+          const left = daysLeft(due);
+          if (left <= 7) items.push({ key: "sd:" + p.id + ":" + s.id + ":" + due + ":" + bucket(left), kind: "task", id: p.id,
+            title: s.name + " \u00b7 " + p.name, left: left, note: describe(left), late: left < 0 });
+        }
       });
     });
   }
