@@ -1,3 +1,7 @@
+<div align="center">
+
+<img src="logo.png" alt="Cadence logo" width="120">
+
 # Cadence
 
 **Plan shots, track deadlines and show off your finished animation work.**
