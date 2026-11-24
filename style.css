@@ -1104,9 +1104,9 @@ html.share-view #shareView { display: block; max-width: 720px; margin: 0 auto; p
 @media not all and (min-width: 900px) and (orientation: landscape) {
   .home-grid { display: flex; flex-direction: column; gap: 14px; }
   .home-main, .home-side { display: contents; }
-  .home-feed .home-hello { display: block; margin: 0 0 16px; }
-  .home-feed .home-hello h2 { font-size: 1.6rem; margin: 0 0 4px; letter-spacing: -0.02em; }
-  .home-feed .home-hello .hint { margin: 0; }
+  .composer .home-hello { display: block; margin: 0 0 6px; }
+  .composer .home-hello h2 { font-size: 1.6rem; margin: 0 0 4px; letter-spacing: -0.02em; }
+  .composer .home-hello .hint { margin: 0; }
 
   .home-pill { display: flex; order: 1; align-items: center; justify-content: space-between; gap: 10px; }
   .pill-seg { display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.06); }
@@ -1139,6 +1139,8 @@ html.share-view #shareView { display: block; max-width: 720px; margin: 0 auto; p
 
   /* Community */
   .home-feed h2 { margin: 0 0 4px; }
+  .home-feed > p.hint:not(.feed-msg), .home-feed #feedRefresh { display: none; }
+  .home-feed .feed-msg:empty { display: none; }
   .home-feed .feed-list { margin-top: 8px; }
 
   /* Deadlines: bottom sheet */
@@ -1151,3 +1153,13 @@ html.share-view #shareView { display: block; max-width: 720px; margin: 0 auto; p
   .sheet-backdrop[hidden] { display: none; }
   body.dl-open { overflow: hidden; }
 }
+
+/* v45: post photos */
+.c-photo { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.c-preview { position: relative; max-width: 100%; }
+.c-preview[hidden] { display: none; }
+.c-preview img { display: block; max-width: 100%; max-height: 220px; border-radius: var(--r-md, 12px); border: 1px solid var(--line); }
+.c-unpick { position: absolute; top: 6px; right: 6px; width: 36px; min-height: 36px; padding: 0; border-radius: 50%; background: rgba(0, 0, 0, 0.6); color: #fff; border: 0; }
+.post-img { display: block; width: 100%; max-height: 420px; object-fit: contain; background: var(--bg, transparent); border-radius: var(--r-md, 12px); margin-top: 8px; cursor: zoom-in; }
+.zoom { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 12px; background: rgba(8, 12, 20, 0.88); cursor: zoom-out; }
+.zoom img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; }

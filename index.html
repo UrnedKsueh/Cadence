@@ -65,9 +65,16 @@
     </div>
     <form class="composer" autocomplete="off" hidden>
       <label>Post something</label>
-      <input class="field c-title" maxlength="80" placeholder="Title, e.g. Finished my walk cycle" aria-label="Post title" required>
       <textarea class="field c-body" rows="3" maxlength="400" placeholder="Share your work, ask for feedback, or tell people what you learned" aria-label="Post message"></textarea>
       <input class="field c-link" type="url" inputmode="url" maxlength="300" placeholder="Link (optional): YouTube, Vimeo, Drive, anything" aria-label="Link">
+      <div class="c-photo">
+        <input type="file" class="c-file" accept="image/jpeg,image/png,image/webp" hidden>
+        <button type="button" class="secondary c-pick">Add photo</button>
+        <div class="c-preview" hidden>
+          <img alt="Photo preview">
+          <button type="button" class="c-unpick" aria-label="Remove photo">&#10005;</button>
+        </div>
+      </div>
       <div class="row">
         <button type="submit" class="c-submit">Post</button>
         <small class="hint c-count">0 / 400</small>
@@ -552,18 +559,18 @@
   document.getElementById("dlClose").addEventListener("click", closeSheet);
   back.addEventListener("click", closeSheet);
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeSheet(); });
-  /* Portrait: course filter joins the pill row; the greeting moves into the Community card. */
+  /* Portrait: course filter joins the pill row; the greeting moves into the Post something card. */
   var pillRow = document.getElementById("homePill");
   var filter = document.querySelector(".ov-filter");
   var filterHome = filter && filter.parentNode;
   var hello = document.querySelector(".home-hello");
   var helloHome = hello && hello.parentNode;
   var helloNext = hello && hello.nextSibling;
-  var feed = document.querySelector(".home-feed");
+  var composer = document.querySelector(".composer");
   function place() {
     if (mq.matches) {
       if (filter && filter.parentNode !== pillRow) pillRow.appendChild(filter);
-      if (hello && feed && hello.parentNode !== feed) feed.insertBefore(hello, feed.firstChild);
+      if (hello && composer && hello.parentNode !== composer) composer.insertBefore(hello, composer.firstChild);
     } else {
       if (filter && filterHome && filter.parentNode !== filterHome) filterHome.appendChild(filter);
       if (hello && helloHome && hello.parentNode !== helloHome) helloHome.insertBefore(hello, helloNext);

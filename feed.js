@@ -101,6 +101,20 @@ if (!S.id) {
     wrap.appendChild(head);
     const item = S.itemsFrom([data])[0];
     if (item) wrap.appendChild(S.card(item));
+    if (typeof data.image === "string" && data.image.indexOf("data:image/jpeg;base64,") === 0 && data.image.length <= 250000) {
+      const pic = mk("img", "post-img");
+      pic.src = data.image; pic.alt = "Photo in post by " + String(data.authorName || "a student").slice(0, 40);
+      pic.loading = "lazy";
+      pic.onclick = function () {
+        const ov = mk("div", "zoom");
+        const big = mk("img", "");
+        big.src = data.image; big.alt = pic.alt;
+        ov.appendChild(big);
+        ov.onclick = function () { ov.remove(); };
+        document.body.appendChild(ov);
+      };
+      wrap.appendChild(pic);
+    }
 
     const mine = likes.some(function (l) { return l.id === user.uid; });
     let count = likes.length;
@@ -210,13 +224,62 @@ if (!S.id) {
   // Post box. Uses the same fields as Showcase posts, so the published rules accept it unchanged.
   const form = document.querySelector(".composer");
   const q = function (c) { return form.querySelector(c); };
+  // Photo: one image per post. It is shrunk on the phone (about 1024px, around 150 KB) and stored inside the post.
+  const MAX_IMG_CHARS = 200000;
+  let photo = "";
+  function shrink(file) {
+    return new Promise(function (resolve, reject) {
+      if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { reject(new Error("type")); return; }
+      if (file.size > 20 * 1024 * 1024) { reject(new Error("big")); return; }
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onerror = function () { URL.revokeObjectURL(url); reject(new Error("read")); };
+      img.onload = function () {
+        URL.revokeObjectURL(url);
+        let max = 1024, quality = 0.8;
+        for (let i = 0; i < 12; i++) {
+          const k = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+          const cv = document.createElement("canvas");
+          cv.width = Math.max(1, Math.round(img.naturalWidth * k));
+          cv.height = Math.max(1, Math.round(img.naturalHeight * k));
+          const cx = cv.getContext("2d");
+          cx.fillStyle = "#fff"; cx.fillRect(0, 0, cv.width, cv.height);
+          cx.drawImage(img, 0, 0, cv.width, cv.height);
+          const out = cv.toDataURL("image/jpeg", quality);
+          if (out.length <= MAX_IMG_CHARS) { resolve(out); return; }
+          if (quality > 0.5) quality -= 0.1; else max = Math.round(max * 0.8);
+        }
+        reject(new Error("big"));
+      };
+      img.src = url;
+    });
+  }
+  function setPhoto(data) {
+    photo = data || "";
+    q(".c-preview").hidden = !photo;
+    if (photo) q(".c-preview img").src = photo; else q(".c-preview img").removeAttribute("src");
+    q(".c-pick").textContent = photo ? "Change photo" : "Add photo";
+  }
+  q(".c-pick").onclick = function () { q(".c-file").click(); };
+  q(".c-unpick").onclick = function () { setPhoto(""); q(".c-file").value = ""; };
+  q(".c-file").onchange = async function () {
+    const file = q(".c-file").files && q(".c-file").files[0];
+    if (!file) return;
+    const msg = q(".c-msg");
+    msg.textContent = "Preparing photo…";
+    try { setPhoto(await shrink(file)); msg.textContent = ""; }
+    catch (err) {
+      setPhoto(""); q(".c-file").value = "";
+      msg.textContent = err.message === "type" ? "Use a JPG, PNG or WebP photo."
+        : err.message === "big" ? "That photo is too big. Try a smaller one." : "Couldn't read that photo.";
+    }
+  };
   q(".c-body").addEventListener("input", function () { q(".c-count").textContent = q(".c-body").value.length + " / 400"; });
   form.onsubmit = async function (e) {
     e.preventDefault();
     if (!user) return;
     const msg = q(".c-msg");
-    const title = q(".c-title").value.trim().slice(0, 80);
-    if (!title) { msg.textContent = "Add a title first."; return; }
+    const text = q(".c-body").value.trim().slice(0, 400);
     let url = "";
     const raw = q(".c-link").value.trim();
     if (raw) {
@@ -226,15 +289,29 @@ if (!S.id) {
       } catch (err) {}
       if (!url) { msg.textContent = "That link doesn't look right."; return; }
     }
+    if (!text && !url && !photo) { msg.textContent = "Write something, add a link or add a photo first."; return; }
+    // No title box: the title is made from the first line of the message (or the link's site).
+    let title = "", note = text;
+    if (text) {
+      const first = text.split(/\r?\n/)[0].trim();
+      if (first.length <= 80) { title = first; note = text.slice(text.indexOf(first) + first.length).trim(); }
+      else { title = first.slice(0, 77).replace(/\s+\S*$/, "").trim() + "…"; }
+    } else {
+      try { title = new URL(url).hostname.replace(/^www\./, "").slice(0, 80); } catch (err) {}
+    }
+    if (!title) title = photo ? "Photo" : "Post";
     const btn = q(".c-submit");
     btn.disabled = true;
     msg.textContent = "Posting…";
     try {
-      await addDoc(collection(db, "posts"), {
+      const body = {
         owner: user.uid, authorName: myName(), title: title, course: "", year: "",
-        role: "", tools: [], note: q(".c-body").value.trim().slice(0, 400), url: url, createdAt: serverTimestamp()
-      });
+        role: "", tools: [], note: note, url: url, createdAt: serverTimestamp()
+      };
+      if (photo) body.image = photo;
+      await addDoc(collection(db, "posts"), body);
       form.reset();
+      setPhoto("");
       q(".c-count").textContent = "0 / 400";
       msg.textContent = "Posted.";
       loading = false;
