@@ -4,13 +4,13 @@ import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/
 import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, onSnapshot, writeBatch, serverTimestamp }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
+import { COLORS, getProfile, setCached, avatarEl, paintAva } from "./avatars.js";
+
 const db = getFirestore(getApp());
 const auth = getAuth(getApp());
 const $ = function (id) { return document.getElementById(id); };
-const COLORS = ["#4fc3a1", "#8fa8ff", "#f0b44c", "#ff8a80", "#c792ea", "#5cc8e8"];
 const HANDLE_RE = /^[a-z0-9_]{3,20}$/;
-const cache = {};
-let me = null, mine = null, color = COLORS[0], unsub = null;
+let me = null, mine = null, color = COLORS[0], unsub = null, photoData = "";
 let incoming = [], outgoing = [], friends = [], blocked = [];
 let pendingAdd = (new URLSearchParams(location.search).get("add") || "").toLowerCase();
 
@@ -21,23 +21,10 @@ function mk(tag, cls, text) {
   return n;
 }
 function nameOf(p) { return (p && p.nickname) || "Cadence user"; }
-function avatar(p, lg) {
-  const a = mk("span", "avatar" + (lg ? " lg" : ""), nameOf(p).trim().charAt(0).toUpperCase() || "?");
-  const c = (p && p.color) || COLORS[0];
-  a.style.color = c;
-  a.style.backgroundColor = "color-mix(in srgb, " + c + " 22%, var(--panel))";
-  return a;
-}
+function avatar(p, lg) { return avatarEl(p, lg ? "lg" : "", nameOf(p)); }
 function pairId(a, b) { return [a, b].sort().join("_"); }
-function say(id, t) { $(id).textContent = t || ""; }
-
-async function getProfile(uid) {
-  if (cache[uid]) return cache[uid];
-  const snap = await getDoc(doc(db, "profiles", uid));
-  if (!snap.exists()) return null;
-  cache[uid] = snap.data();
-  return cache[uid];
-}
+let target = $("personBox"), closeFn = null, modalMsg = null;
+function say(id, t) { $(id).textContent = t || ""; if (id === "friendMsg" && modalMsg) modalMsg.textContent = t || ""; }
 
 const dcache = {};
 async function getDetails(uid) {
@@ -62,6 +49,9 @@ function paintMine() {
   if (has) { $("profileName").textContent = mine.nickname; try { localStorage.setItem("cadence:displayName", mine.nickname); } catch (e) {} }
   $("profileHandle").hidden = !has;
   $("profileHandle").textContent = has ? "@" + mine.handle + (mine.course ? " · " + mine.course : "") : "";
+  ["profileAvatar", "headerAvatar"].forEach(function (id) {
+    if (has && mine.photo) { const el = $(id); el.textContent = ""; const im = mk("img"); im.src = mine.photo; im.alt = ""; el.appendChild(im); }
+  });
   $("profileBio").hidden = !(has && mine.bio);
   $("profileBio").textContent = has ? mine.bio : "";
 }
@@ -72,11 +62,51 @@ function openForm(open) {
   const base = mine || { nickname: me.displayName ? me.displayName.trim().split(/\s+/)[0] : "", handle: "", bio: "", course: "", color: COLORS[0] };
   $("pfNick").value = base.nickname; $("pfHandle").value = base.handle;
   $("pfBio").value = base.bio || ""; $("pfCourse").value = base.course || "";
-  color = base.color || COLORS[0]; paintColors(); say("pfMsg", "");
+  color = base.color || COLORS[0]; photoData = base.photo || ""; paintColors(); say("pfMsg", "");
   $("pfNick").focus();
 }
 
+function paintPhoto() {
+  paintAva($("pfPhoto"), { nickname: $("pfNick").value || "?", color: color, photo: photoData });
+  $("pfUnpick").hidden = !photoData;
+  $("pfPick").textContent = photoData ? "Change photo" : "Add photo";
+}
+function shrinkAvatar(file) {
+  return new Promise(function (resolve, reject) {
+    if (!/^image\/(jpeg|png|webp)$/.test(file.type)) { reject(new Error("type")); return; }
+    const url = URL.createObjectURL(file), img = new Image();
+    img.onerror = function () { URL.revokeObjectURL(url); reject(new Error("read")); };
+    img.onload = function () {
+      URL.revokeObjectURL(url);
+      const side = Math.min(img.naturalWidth, img.naturalHeight);
+      const sx = (img.naturalWidth - side) / 2, sy = (img.naturalHeight - side) / 2;
+      let size = 128, q = 0.8;
+      for (let i = 0; i < 10; i++) {
+        const cv = document.createElement("canvas"); cv.width = cv.height = size;
+        const cx = cv.getContext("2d"); cx.fillStyle = "#fff"; cx.fillRect(0, 0, size, size);
+        cx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+        const out = cv.toDataURL("image/jpeg", q);
+        if (out.length <= 12000) { resolve(out); return; }
+        if (q > 0.5) q -= 0.1; else size = Math.round(size * 0.85);
+      }
+      reject(new Error("big"));
+    };
+    img.src = url;
+  });
+}
+$("pfPick").onclick = function () { $("pfFile").click(); };
+$("pfUnpick").onclick = function () { photoData = ""; $("pfFile").value = ""; paintPhoto(); };
+$("pfNick").addEventListener("input", paintPhoto);
+$("pfFile").onchange = async function () {
+  const f = $("pfFile").files && $("pfFile").files[0];
+  if (!f) return;
+  try { photoData = await shrinkAvatar(f); say("pfMsg", ""); }
+  catch (err) { say("pfMsg", err.message === "type" ? "Use a JPG, PNG or WebP photo." : "Couldn't use that photo. Try another."); }
+  $("pfFile").value = ""; paintPhoto();
+};
+
 function paintColors() {
+  paintPhoto();
   const box = $("pfColors"); box.textContent = "";
   COLORS.forEach(function (c) {
     const b = mk("button"); b.type = "button"; b.style.backgroundColor = c;
@@ -101,7 +131,7 @@ $("profForm").onsubmit = async function (e) {
       const taken = await getDoc(doc(db, "handles", handle));
       if (taken.exists() && taken.data().uid !== me.uid) { say("pfMsg", "That handle is taken."); return; }
     }
-    const p = { uid: me.uid, nickname: nick.slice(0, 30), handle: handle, color: color, updatedAt: Date.now() };
+    const p = { uid: me.uid, nickname: nick.slice(0, 30), handle: handle, color: color, photo: photoData, updatedAt: Date.now() };
     const det = { bio: $("pfBio").value.trim().slice(0, 160), course: $("pfCourse").value.trim().slice(0, 60) };
     const batch = writeBatch(db);
     batch.set(doc(db, "profiles", me.uid), p);
@@ -111,7 +141,7 @@ $("profForm").onsubmit = async function (e) {
       if (old) batch.delete(doc(db, "handles", old));
     }
     await batch.commit();
-    mine = Object.assign({}, p, det); cache[me.uid] = p; dcache[me.uid] = det; paintMine(); openForm(false);
+    mine = Object.assign({}, p, det); setCached(me.uid, p); dcache[me.uid] = det; paintMine(); openForm(false); document.dispatchEvent(new Event("cadence:profile"));
   } catch (err) { say("pfMsg", "Couldn't save. Make sure the new Firestore rules are published."); }
   finally { if (btn) btn.disabled = false; }
 };
@@ -185,8 +215,9 @@ async function refresh() {
 }
 
 // ----- Person card -----
+function closePerson() { if (closeFn) closeFn(); else $("personBox").textContent = ""; }
 function showPerson(p) {
-  const box = $("personBox"); box.textContent = "";
+  const box = target; box.textContent = "";
   if (!p) return;
   const card = mk("div", "soc-person");
   const top = mk("div", "top"); top.appendChild(avatar(p, true));
@@ -209,7 +240,7 @@ function showPerson(p) {
     btn("Remove", function () { unfriend(p); }, true);
   }
   else if (rel === "self") card.appendChild(mk("small", "", "This is you."));
-  btn("Close", function () { box.textContent = ""; }, true);
+  btn("Close", closePerson, true);
   card.appendChild(row); box.appendChild(card);
   box.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
@@ -279,7 +310,7 @@ async function sendRequest(toUid) {
   return b.commit();
 }
 async function addFriend(p) {
-  if (!mine) { say("friendMsg", "Set up your own profile first."); openForm(true); return; }
+  if (!mine) { say("friendMsg", "Set up your own profile first."); if (closeFn) { closeFn(); $("avatarBtn").click(); } openForm(true); return; }
   if (relation(p.uid) === "incoming") return accept(p.uid);
   if (outgoing.length >= 20) { say("friendMsg", "You have 20 requests waiting. Cancel some before sending more."); return; }
   const ok = await act(function () { return sendRequest(p.uid); }, "Couldn't send that request.");
@@ -339,6 +370,36 @@ $("inviteBtn").onclick = function () {
     function () { say("friendMsg", "Invite link copied."); }, function () { say("friendMsg", link); });
 };
 
+// ----- Profile popup (opened by tapping a name or picture in the community) -----
+async function openProfile(uid, name) {
+  if (!me) return;
+  if (closeFn) closeFn();
+  const ov = mk("div", "pf-sheet");
+  ov.setAttribute("role", "dialog"); ov.setAttribute("aria-modal", "true"); ov.setAttribute("aria-label", "Profile");
+  const panel = mk("div", "pf-panel"); panel.tabIndex = -1;
+  const box = mk("div"); const msg = mk("p", "hint"); msg.setAttribute("aria-live", "polite");
+  panel.appendChild(box); panel.appendChild(msg); ov.appendChild(panel);
+  document.body.appendChild(ov); document.body.style.overflow = "hidden";
+  const prevFocus = document.activeElement;
+  function esc(e) { if (e.key === "Escape") closeFn(); }
+  closeFn = function () {
+    ov.remove(); document.body.style.overflow = ""; document.removeEventListener("keydown", esc);
+    target = $("personBox"); modalMsg = null; closeFn = null;
+    if (prevFocus && prevFocus.focus) prevFocus.focus();
+  };
+  ov.onclick = function (e) { if (e.target === ov) closeFn(); };
+  document.addEventListener("keydown", esc);
+  target = box; modalMsg = msg; panel.focus();
+  const p = await getProfile(uid);
+  if (!closeFn) return;
+  if (p) showPerson(p);
+  else {
+    box.appendChild(mk("p", "", (name || "This student") + " hasn't set up a profile yet."));
+    const b = mk("button", "secondary", "Close"); b.type = "button"; b.onclick = closeFn; box.appendChild(b);
+  }
+}
+window.CadenceProfile = { open: openProfile };
+
 // ----- Sign-in wiring -----
 function badge() {
   const n = incoming.length;
@@ -349,7 +410,7 @@ onAuthStateChanged(auth, async function (user) {
   mine = null; incoming = []; outgoing = []; friends = []; blocked = []; badge();
   $("socialSection").hidden = !user; $("friendsSection").hidden = !user; $("socialSignedOut").hidden = !!user;
   $("profEditBtn").hidden = !user; $("profileHandle").hidden = true; $("profileBio").hidden = true;
-  openForm(false); $("personBox").textContent = ""; $("friendShowToggle").checked = false;
+  if (closeFn) closeFn(); openForm(false); $("personBox").textContent = ""; $("friendShowToggle").checked = false;
   if (!user) return;
   getDoc(doc(db, "friendShowcases", user.uid)).then(function (d) {
     $("friendShowToggle").checked = d.exists(); if (d.exists()) publishShowcase();

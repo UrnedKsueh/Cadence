@@ -3,6 +3,7 @@ import { getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, orderBy, limit, getDocs, addDoc, serverTimestamp }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { avatarFor, avatarEl, getProfile, paintAva } from "./avatars.js";
 
 const S = window.CadenceShare;
 if (!S.id) {
@@ -32,6 +33,22 @@ if (!S.id) {
     if (m < 60) return m + " min ago";
     if (m < 1440) return Math.round(m / 60) + " h ago";
     return Math.round(m / 1440) + " d ago";
+  }
+  function paintComposerAva() {
+    const slot = form.querySelector(".c-ava");
+    slot.textContent = "";
+    if (!user) return;
+    const el = avatarEl(null, "", myName()); slot.appendChild(el);
+    getProfile(user.uid).then(function (p) { if (p) paintAva(el, p, myName()); });
+  }
+  document.addEventListener("cadence:profile", function () { if (typeof paintComposerAva === "function") paintComposerAva(); });
+  function tappable(el, uid, name) {
+    el.classList.add("tap"); el.tabIndex = 0; el.setAttribute("role", "button");
+    el.setAttribute("aria-label", "View " + name + "'s profile"); el.removeAttribute("aria-hidden");
+    const go = function () { if (window.CadenceProfile) window.CadenceProfile.open(uid, name); };
+    el.onclick = go;
+    el.onkeydown = function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } };
+    return el;
   }
   function say(text) { document.querySelectorAll(".feed-msg").forEach(function (n) { n.textContent = text; }); }
   function refreshApp() { if (typeof renderAll === "function") renderAll(); }
@@ -75,7 +92,8 @@ if (!S.id) {
     snap.docs.forEach(function (d) {
       const c = d.data();
       const row = mk("div", "comment");
-      const who = mk("strong", "", String(c.authorName || "A student").slice(0, 40));
+      const cName = String(c.authorName || "A student").slice(0, 40);
+      const who = c.owner ? tappable(mk("strong", "", cName), c.owner, cName) : mk("strong", "", cName);
       row.appendChild(who);
       row.appendChild(document.createTextNode(" " + String(c.text || "").slice(0, 200) + " "));
       row.appendChild(mk("small", "hint", ago(c.createdAt)));
@@ -96,11 +114,17 @@ if (!S.id) {
   function renderPost(id, data, likes) {
     const wrap = mk("article", "post");
     const head = mk("div", "post-head");
-    head.appendChild(mk("strong", "", String(data.authorName || "A student").slice(0, 40)));
+    const aName = String(data.authorName || "A student").slice(0, 40);
+    head.appendChild(tappable(mk("strong", "", aName), data.owner, aName));
     head.appendChild(mk("small", "hint", " · " + ago(data.createdAt)));
     wrap.appendChild(head);
     const item = S.itemsFrom([data])[0];
-    if (item) wrap.appendChild(S.card(item));
+    const ava = tappable(avatarFor(data.owner, aName, "post-ava"), data.owner, aName);
+    if (item) {
+      const card = S.card(item); wrap.appendChild(card);
+      const tile = card.querySelector(".proj-tile");
+      if (tile) tile.replaceWith(ava); else { head.classList.add("has-ava"); head.insertBefore(ava, head.firstChild); }
+    } else { head.classList.add("has-ava"); head.insertBefore(ava, head.firstChild); }
     if (typeof data.image === "string" && data.image.indexOf("data:image/jpeg;base64,") === 0 && data.image.length <= 250000) {
       const pic = mk("img", "post-img");
       pic.src = data.image; pic.alt = "Photo in post by " + String(data.authorName || "a student").slice(0, 40);
@@ -354,6 +378,7 @@ if (!S.id) {
       try { admin = (await getDoc(doc(db, "admins", user.uid))).exists(); } catch (e) {}
     }
     form.hidden = !user;
+    paintComposerAva();
     hello();
     refreshApp();
     loadFeed();

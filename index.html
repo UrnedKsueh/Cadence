@@ -65,7 +65,7 @@
     </div>
     <form class="composer" autocomplete="off" hidden>
       <label class="sr" for="composerBody">Post something</label>
-      <textarea class="field c-body" id="composerBody" rows="2" maxlength="400" placeholder="Share your work, ask for feedback, or tell people what you learned" aria-label="Post message"></textarea>
+      <div class="c-row"><span class="c-ava" aria-hidden="true"></span><textarea class="field c-body" id="composerBody" rows="2" maxlength="400" placeholder="Share your work, ask for feedback, or tell people what you learned" aria-label="Post message"></textarea></div>
       <small class="hint c-count">0 / 400</small>
       <input class="field c-link" type="url" inputmode="url" maxlength="300" placeholder="Link: YouTube, Vimeo, Drive, anything" aria-label="Link" hidden>
       <div class="c-preview" hidden>
@@ -365,6 +365,11 @@
     <section id="socialSection" aria-labelledby="socialTitle" hidden>
       <form id="profForm" class="soc-form" autocomplete="off" hidden>
         <h2 id="socialTitle">Edit profile</h2>
+        <div class="pf-photo">
+          <span id="pfPhoto" class="pf-ava lg" aria-hidden="true"></span>
+          <div class="row"><button type="button" class="secondary" id="pfPick">Add photo</button><button type="button" class="secondary" id="pfUnpick" hidden>Remove</button></div>
+          <input type="file" id="pfFile" accept="image/jpeg,image/png,image/webp" hidden>
+        </div>
         <label for="pfNick">Nickname</label>
         <input id="pfNick" class="field" maxlength="30" required placeholder="What friends see">
         <label for="pfHandle">Handle</label>
@@ -553,6 +558,7 @@
 <script src="tools.js"></script>
 <script type="module" src="cloud.js"></script>
 <script type="module" src="share.js"></script>
+<script type="module" src="avatars.js"></script>
 <script type="module" src="social.js"></script>
 <script type="module" src="feed.js"></script>
 <script type="module" src="resources.js"></script>
