@@ -1,11 +1,11 @@
 // Cadence service worker: lets the app open offline.
 // Network first: online you always get the newest files; offline you get the last saved copy.
 // Bump CACHE when you want old saved copies thrown away.
-const CACHE = "cadence-v55";
+const CACHE = "cadence-v60";
 const FILES = [
   "./", "index.html", "style.css", "manifest.webmanifest",
   "theme.js", "shareview.js", "gate.js", "storage.js", "script.js", "tabs.js", "tools.js",
-  "cloud.js", "share.js", "avatars.js", "social.js", "feed.js", "resources.js", "calendar.js", "pwa.js",
+  "cloud.js", "share.js", "avatars.js", "social.js", "feed.js", "resources.js", "sharedprojects.js", "calendar.js", "pwa.js",
   "logo.png", "favicon.png", "icon-192.png", "icon-512.png"
 ];
 

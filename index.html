@@ -63,6 +63,10 @@
       <h2 id="helloTitle">Hello</h2>
       <p class="hint">What's new with you? Would you like to share something with the community?</p>
     </div>
+    <section class="my-tasks" id="myTasks" aria-labelledby="myTasksTitle" hidden>
+      <h2 id="myTasksTitle">My tasks</h2>
+      <ul id="myTasksList"></ul>
+    </section>
     <form class="composer" autocomplete="off" hidden>
       <label class="sr" for="composerBody">Post something</label>
       <div class="c-row"><span class="c-ava" aria-hidden="true"></span><textarea class="field c-body" id="composerBody" rows="2" maxlength="400" placeholder="Share your work, ask for feedback, or tell people what you learned" aria-label="Post message"></textarea></div>
@@ -147,9 +151,32 @@
   </div>
 
   <div class="panel" id="panel-projects" role="tabpanel" aria-labelledby="tab-projects" tabindex="-1" hidden>
+  <section id="sharedSection" aria-labelledby="sharedTitle" hidden>
+    <h2 id="sharedTitle">Shared projects</h2>
+    <p class="hint">Projects your team works on together. Each stage has an owner and a status.</p>
+    <details class="shots add-piece" id="sharedAdd" hidden>
+      <summary>New shared project</summary>
+      <form id="sharedForm" autocomplete="off">
+        <label for="sharedName">Project name</label>
+        <input id="sharedName" class="field" placeholder="e.g. Class short film" required maxlength="80" enterkeyhint="done">
+        <label for="sharedCourse">Course (optional)</label>
+        <input id="sharedCourse" class="field" list="courses" placeholder="e.g. EMC 204" maxlength="40">
+        <label for="sharedDue">Due date (optional)</label>
+        <input id="sharedDue" class="field" type="date">
+        <label class="sp-check"><input type="checkbox" id="sharedPipeline" checked> Start with the animation pipeline stages</label>
+        <div class="form-actions">
+          <button type="submit">Create project</button>
+          <button type="button" class="secondary" id="sharedCancel">Cancel</button>
+        </div>
+      </form>
+    </details>
+    <p class="hint show-msg" id="sharedMsg" role="status" aria-live="polite" hidden></p>
+    <ul id="sharedList"></ul>
+    <div class="empty show-empty" id="sharedEmpty" hidden><p></p></div>
+  </section>
   <section aria-labelledby="projectsTitle">
-    <h2 id="projectsTitle">Projects</h2>
-    <p class="hint">Track each project through the pipeline and break it into shots.</p>
+    <h2 id="projectsTitle">My private projects</h2>
+    <p class="hint">Only you can see these. Track each one through the pipeline and break it into shots.</p>
     <details class="shots add-piece" id="projectAdd">
       <summary>New project</summary>
       <form id="projectForm" autocomplete="off">
@@ -562,6 +589,7 @@
 <script type="module" src="social.js"></script>
 <script type="module" src="feed.js"></script>
 <script type="module" src="resources.js"></script>
+<script type="module" src="sharedprojects.js"></script>
 <script src="calendar.js"></script>
 <script src="pwa.js"></script>
 <div class="sheet-backdrop" id="dlBackdrop" hidden></div>

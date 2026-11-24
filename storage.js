@@ -93,7 +93,40 @@ const Storage = (function () {
     scheduleSync();
   }
 
+  // Each account keeps its own copy of the data on this device. Switching accounts
+  // stashes the current copy and brings back the other one, so nothing is mixed or lost.
+  const OWNER_KEY = PREFIX + "owner";
+  const OWNED = ["deadlines", "projects", "showcase", "displayName"];
+  function stashKey(who, k) { return PREFIX + "u:" + who + ":" + k; }
+  function moveOut(who) {
+    OWNED.forEach(function (k) {
+      const v = localStorage.getItem(PREFIX + k);
+      if (v === null) localStorage.removeItem(stashKey(who, k)); else localStorage.setItem(stashKey(who, k), v);
+      localStorage.removeItem(PREFIX + k);
+    });
+  }
+  function moveIn(who) {
+    OWNED.forEach(function (k) {
+      const v = localStorage.getItem(stashKey(who, k));
+      if (v !== null) localStorage.setItem(PREFIX + k, v);
+    });
+  }
+  function hasStash(who) { return OWNED.some(function (k) { return localStorage.getItem(stashKey(who, k)) !== null; }); }
+  // uid, or "guest" when signed out. Returns true when the visible data changed.
+  function switchOwner(uid) {
+    try {
+      const prev = localStorage.getItem(OWNER_KEY);
+      if (prev === uid) return false;
+      localStorage.setItem(OWNER_KEY, uid);
+      if (!prev) return false; // first run: the data already on the device goes to whoever is here
+      if (uid !== "guest" && prev === "guest" && !hasStash(uid)) return false; // guest work moves into the new account
+      moveOut(prev);
+      moveIn(uid);
+      return true;
+    } catch (error) { return false; }
+  }
+
   migrateLegacy();
-  return { load: load, store: store, snapshot: snapshot, overLimits: overLimits,
+  return { switchOwner: switchOwner, load: load, store: store, snapshot: snapshot, overLimits: overLimits,
            setCloud: setCloud, syncNow: syncNow, LIMITS: LIMITS };
 })();

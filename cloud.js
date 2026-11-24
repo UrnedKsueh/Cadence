@@ -112,7 +112,15 @@ $("signOutBtn").onclick = function () {
   signOut(auth).then(function () { window.Gate.signedOut(); });
 };
 
+function adoptOwner(user) {
+  if (Storage.switchOwner(user ? user.uid : "guest") && typeof applyData === "function") {
+    Storage.setCloud(null);
+    applyData(Storage.load("deadlines"), Storage.load("projects"), Storage.load("showcase"));
+  }
+}
+
 onAuthStateChanged(auth, function (user) {
+  adoptOwner(user);
   $("signInBtn").hidden = !!user;
   $("signOutBtn").hidden = !user;
   showProfile(user);
@@ -206,6 +214,10 @@ function renderAnnouncements() {
   }
 }
 
+// The bell inbox in script.js reads these
+window.CadenceAnnouncements = { list: function () { return announcements; } };
+function announceChanged() { window.dispatchEvent(new CustomEvent("cadence:announcements")); }
+
 async function loadAnnouncements(force) {
   if (!auth.currentUser) return;
   if (!force && Date.now() - lastFetch < 60000) return; // at most once a minute
@@ -215,6 +227,7 @@ async function loadAnnouncements(force) {
     announcements = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
   } catch (error) { return; } // offline or rules not published yet: just show nothing
   renderAnnouncements();
+  announceChanged();
 }
 
 async function checkAdmin(user) {
@@ -245,7 +258,7 @@ $("announceForm").onsubmit = function (event) {
 onAuthStateChanged(auth, function (user) {
   if (user) { checkAdmin(user).then(function () { return loadAnnouncements(true); }); }
   else {
-    isAdmin = false; announcements = []; lastFetch = 0;
+    isAdmin = false; announcements = []; lastFetch = 0; announceChanged();
     $("adminSection").hidden = true;
     renderAnnouncements();
   }

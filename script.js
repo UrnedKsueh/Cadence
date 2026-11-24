@@ -845,6 +845,27 @@ function buildNotifications() {
     items.push({ key: "pj:" + p.id + ":" + p.due + ":" + bucket(left), kind: "project", id: p.id,
       title: p.name, left: left, course: p.course, late: left < 0 });
   });
+  // Shared projects: stages assigned to me, and announcements from the admin
+  const sp = window.CadenceSharedProjects;
+  if (sp) {
+    const uid = sp.uid();
+    sp.list().forEach(function (p) {
+      p.stages.forEach(function (s, i) {
+        if (s.assignee !== uid || s.status === "Done") return;
+        const ready = s.status === "To do" && (i === 0 || p.stages[i - 1].status === "Done");
+        items.push({ key: (ready ? "sr:" : "sa:") + p.id + ":" + s.id, kind: "task", id: p.id,
+          title: s.name + " \u00b7 " + p.name, left: ready ? -2000 : -1000,
+          note: ready ? "Ready for you" : "Assigned to you", late: false });
+      });
+    });
+  }
+  const an = window.CadenceAnnouncements;
+  if (an) {
+    an.list().slice(0, 5).forEach(function (a) {
+      items.push({ key: "an:" + a.id, kind: "announcement", id: a.id, title: a.title,
+        left: -500, note: "Announcement", late: false });
+    });
+  }
   return items.sort(function (a, b) { return a.left - b.left; });
 }
 
@@ -883,15 +904,25 @@ function renderNotifications() {
     main.appendChild(el("span", "notif-dot"));
     const body = el("span", "notif-body");
     body.appendChild(el("strong", "", n.title));
-    const kind = n.kind === "project" ? "Project" : "Deadline";
-    body.appendChild(el("small", "", kind + " · " + describe(n.left) + (n.course ? " · " + n.course : "")));
+    if (n.note) body.appendChild(el("small", "", n.note));
+    else {
+      const kind = n.kind === "project" ? "Project" : "Deadline";
+      body.appendChild(el("small", "", kind + " · " + describe(n.left) + (n.course ? " · " + n.course : "")));
+    }
     main.appendChild(body);
     main.onclick = function () {
       if (notifRead.indexOf(n.key) < 0) { notifRead.push(n.key); saveNotifRead(); }
       setNotifOpen(false);
       renderNotifications();
       if (n.kind === "project") window.showTab("projects");
-      else { window.showTab("home"); if (!(window.openDeadlines && window.openDeadlines(false))) $("deadlineList").scrollIntoView({ block: "start" }); }
+      else if (n.kind === "task") {
+        window.showTab("projects");
+        if (window.CadenceSharedProjects) window.CadenceSharedProjects.show(n.id);
+      } else if (n.kind === "announcement") {
+        window.showTab("home");
+        const box = $("announceBox");
+        if (box && !box.hidden) box.scrollIntoView({ block: "start" });
+      } else { window.showTab("home"); if (!(window.openDeadlines && window.openDeadlines(false))) $("deadlineList").scrollIntoView({ block: "start" }); }
     };
     li.appendChild(main);
 
@@ -1653,3 +1684,8 @@ store(KEYS.showcase, showcase);
 renderAll();
 
 
+
+// Re-draw the bell when shared projects or announcements load or change
+window.addEventListener("cadence:sharedprojects", renderNotifications);
+window.addEventListener("cadence:sharedprojects:changed", renderNotifications);
+window.addEventListener("cadence:announcements", renderNotifications);

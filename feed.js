@@ -84,47 +84,58 @@ if (!S.id) {
   };
 
   async function loadComments(postId, postOwner, list) {
-    list.textContent = "";
+    if (!list.childNodes.length) list.appendChild(mk("p", "hint", "Loading comments…"));
     let snap;
     try { snap = await getDocs(query(collection(db, "posts", postId, "comments"), orderBy("createdAt"), limit(30))); }
-    catch (e) { list.appendChild(mk("p", "hint", "Couldn't load comments.")); return; }
+    catch (e) { list.textContent = ""; list.appendChild(mk("p", "hint", "Couldn't load comments.")); return; }
+    list.textContent = "";
     if (snap.empty) list.appendChild(mk("p", "hint", "No comments yet."));
+    const frag = document.createDocumentFragment();
     snap.docs.forEach(function (d) {
       const c = d.data();
       const row = mk("div", "comment");
       const cName = String(c.authorName || "A student").slice(0, 40);
-      const who = c.owner ? tappable(mk("strong", "", cName), c.owner, cName) : mk("strong", "", cName);
-      row.appendChild(who);
-      row.appendChild(document.createTextNode(" " + String(c.text || "").slice(0, 200) + " "));
-      row.appendChild(mk("small", "hint", ago(c.createdAt)));
+      const ava = c.owner ? tappable(avatarFor(c.owner, cName, "c-pic"), c.owner, cName) : avatarEl(null, "c-pic", cName);
+      const body = mk("div", "c-text-wrap");
+      const meta = mk("div", "c-meta");
+      meta.appendChild(c.owner ? tappable(mk("strong", "", cName), c.owner, cName) : mk("strong", "", cName));
+      meta.appendChild(mk("small", "hint", ago(c.createdAt)));
+      body.appendChild(meta);
+      body.appendChild(mk("p", "c-text", String(c.text || "").slice(0, 200)));
+      row.appendChild(ava);
+      row.appendChild(body);
       if (user && (c.owner === user.uid || postOwner === user.uid || admin)) {
         const del = mk("button", "remove", "✕");
         del.type = "button";
         del.setAttribute("aria-label", "Delete comment");
         del.onclick = async function () {
-          try { await deleteDoc(doc(db, "posts", postId, "comments", d.id)); loadComments(postId, postOwner, list); }
+          try { await deleteDoc(doc(db, "posts", postId, "comments", d.id)); row.remove(); }
           catch (e) { say("Couldn't delete the comment."); }
         };
         row.appendChild(del);
       }
-      list.appendChild(row);
+      frag.appendChild(row);
     });
+    list.appendChild(frag);
   }
 
   function renderPost(id, data, likes) {
     const wrap = mk("article", "post");
-    const head = mk("div", "post-head");
+    const head = mk("div", "post-head has-ava");
     const aName = String(data.authorName || "A student").slice(0, 40);
-    head.appendChild(tappable(mk("strong", "", aName), data.owner, aName));
-    head.appendChild(mk("small", "hint", " · " + ago(data.createdAt)));
+    const ava = tappable(avatarFor(data.owner, aName, "post-ava"), data.owner, aName);
+    const who = mk("div", "post-who");
+    who.appendChild(tappable(mk("strong", "", aName), data.owner, aName));
+    who.appendChild(mk("small", "hint", ago(data.createdAt)));
+    head.appendChild(ava);
+    head.appendChild(who);
     wrap.appendChild(head);
     const item = S.itemsFrom([data])[0];
-    const ava = tappable(avatarFor(data.owner, aName, "post-ava"), data.owner, aName);
     if (item) {
       const card = S.card(item); wrap.appendChild(card);
       const tile = card.querySelector(".proj-tile");
-      if (tile) tile.replaceWith(ava); else { head.classList.add("has-ava"); head.insertBefore(ava, head.firstChild); }
-    } else { head.classList.add("has-ava"); head.insertBefore(ava, head.firstChild); }
+      if (tile) tile.remove();
+    }
     if (typeof data.image === "string" && data.image.indexOf("data:image/jpeg;base64,") === 0 && data.image.length <= 250000) {
       const pic = mk("img", "post-img");
       pic.src = data.image; pic.alt = "Photo in post by " + String(data.authorName || "a student").slice(0, 40);
