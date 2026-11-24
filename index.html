@@ -64,20 +64,19 @@
       <p class="hint">What's new with you? Would you like to share something with the community?</p>
     </div>
     <form class="composer" autocomplete="off" hidden>
-      <label>Post something</label>
-      <textarea class="field c-body" rows="3" maxlength="400" placeholder="Share your work, ask for feedback, or tell people what you learned" aria-label="Post message"></textarea>
-      <input class="field c-link" type="url" inputmode="url" maxlength="300" placeholder="Link (optional): YouTube, Vimeo, Drive, anything" aria-label="Link">
-      <div class="c-photo">
+      <label class="sr" for="composerBody">Post something</label>
+      <textarea class="field c-body" id="composerBody" rows="2" maxlength="400" placeholder="Share your work, ask for feedback, or tell people what you learned" aria-label="Post message"></textarea>
+      <small class="hint c-count">0 / 400</small>
+      <input class="field c-link" type="url" inputmode="url" maxlength="300" placeholder="Link: YouTube, Vimeo, Drive, anything" aria-label="Link" hidden>
+      <div class="c-preview" hidden>
+        <img alt="Photo preview">
+        <button type="button" class="c-unpick" aria-label="Remove photo">&#10005;</button>
+      </div>
+      <div class="c-actions">
         <input type="file" class="c-file" accept="image/jpeg,image/png,image/webp" hidden>
         <button type="button" class="secondary c-pick">Add photo</button>
-        <div class="c-preview" hidden>
-          <img alt="Photo preview">
-          <button type="button" class="c-unpick" aria-label="Remove photo">&#10005;</button>
-        </div>
-      </div>
-      <div class="row">
+        <button type="button" class="secondary c-linkbtn" aria-expanded="false">Add link</button>
         <button type="submit" class="c-submit">Post</button>
-        <small class="hint c-count">0 / 400</small>
       </div>
       <p class="hint c-msg" aria-live="polite"></p>
     </form>
@@ -559,21 +558,23 @@
   document.getElementById("dlClose").addEventListener("click", closeSheet);
   back.addEventListener("click", closeSheet);
   document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeSheet(); });
-  /* Portrait: course filter joins the pill row; the greeting moves into the Post something card. */
+  /* Portrait: course filter joins the pill row; the greeting and post form move into the Community card. */
   var pillRow = document.getElementById("homePill");
   var filter = document.querySelector(".ov-filter");
   var filterHome = filter && filter.parentNode;
   var hello = document.querySelector(".home-hello");
   var helloHome = hello && hello.parentNode;
-  var helloNext = hello && hello.nextSibling;
   var composer = document.querySelector(".composer");
+  var feed = document.querySelector(".home-feed");
   function place() {
     if (mq.matches) {
       if (filter && filter.parentNode !== pillRow) pillRow.appendChild(filter);
+      if (composer && feed && composer.parentNode !== feed) feed.insertBefore(composer, feed.firstChild);
       if (hello && composer && hello.parentNode !== composer) composer.insertBefore(hello, composer.firstChild);
     } else {
       if (filter && filterHome && filter.parentNode !== filterHome) filterHome.appendChild(filter);
-      if (hello && helloHome && hello.parentNode !== helloHome) helloHome.insertBefore(hello, helloNext);
+      if (composer && feed && composer.parentNode === feed) feed.parentNode.insertBefore(composer, feed);
+      if (hello && helloHome && hello.parentNode !== helloHome) helloHome.insertBefore(hello, helloHome.firstChild);
     }
   }
   place();

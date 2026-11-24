@@ -260,6 +260,18 @@ if (!S.id) {
     if (photo) q(".c-preview img").src = photo; else q(".c-preview img").removeAttribute("src");
     q(".c-pick").textContent = photo ? "Change photo" : "Add photo";
   }
+  function setLinkOpen(open) {
+    q(".c-link").hidden = !open;
+    q(".c-linkbtn").setAttribute("aria-expanded", open ? "true" : "false");
+    q(".c-linkbtn").textContent = open ? "Hide link" : "Add link";
+  }
+  q(".c-linkbtn").onclick = function () {
+    const open = q(".c-link").hidden;
+    setLinkOpen(open);
+    if (open) q(".c-link").focus();
+  };
+  function grow() { const t = q(".c-body"); t.style.height = "auto"; t.style.height = Math.min(t.scrollHeight + 2, 200) + "px"; }
+  q(".c-body").addEventListener("input", grow);
   q(".c-pick").onclick = function () { q(".c-file").click(); };
   q(".c-unpick").onclick = function () { setPhoto(""); q(".c-file").value = ""; };
   q(".c-file").onchange = async function () {
@@ -312,6 +324,8 @@ if (!S.id) {
       await addDoc(collection(db, "posts"), body);
       form.reset();
       setPhoto("");
+      setLinkOpen(false);
+      grow();
       q(".c-count").textContent = "0 / 400";
       msg.textContent = "Posted.";
       loading = false;

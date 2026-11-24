@@ -1125,6 +1125,8 @@ html.share-view #shareView { display: block; max-width: 720px; margin: 0 auto; p
     background: var(--panel); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
   }
   .home-main .composer:not([hidden]) { display: grid; margin: 0; }
+  /* One card: the post form sits inside the Community card, separated by a thin line */
+  .home-main .home-feed > .composer:not([hidden]) { background: transparent; box-shadow: none; border: 0; border-radius: 0; padding: 0 0 16px; margin: 0 0 16px; border-bottom: 1px solid var(--line); }
 
   /* Overview: the pill names the view, so the title is visual-hidden and the filter sits right */
   .home-side #overviewTitle { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -1155,7 +1157,6 @@ html.share-view #shareView { display: block; max-width: 720px; margin: 0 auto; p
 }
 
 /* v45: post photos */
-.c-photo { display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
 .c-preview { position: relative; max-width: 100%; }
 .c-preview[hidden] { display: none; }
 .c-preview img { display: block; max-width: 100%; max-height: 220px; border-radius: var(--r-md, 12px); border: 1px solid var(--line); }
@@ -1163,3 +1164,18 @@ html.share-view #shareView { display: block; max-width: 720px; margin: 0 auto; p
 .post-img { display: block; width: 100%; max-height: 420px; object-fit: contain; background: var(--bg, transparent); border-radius: var(--r-md, 12px); margin-top: 8px; cursor: zoom-in; }
 .zoom { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; padding: 12px; background: rgba(8, 12, 20, 0.88); cursor: zoom-out; }
 .zoom img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; }
+
+/* v47: tidier post form */
+.composer { gap: 10px; }
+.composer textarea.field { min-height: 72px; max-height: 200px; resize: none; }
+.composer .c-count { justify-self: end; margin-top: -4px; font-size: 0.78rem; }
+.composer .c-link[hidden] { display: none; }
+.c-actions { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.c-actions .secondary { min-height: 44px; padding: 8px 14px; white-space: nowrap; }
+.c-actions .c-submit { margin-left: auto; min-height: 44px; min-width: 92px; padding: 8px 22px; font-weight: 700; }
+.composer .c-msg:empty { display: none; }
+@media (max-width: 380px) {
+  .c-actions { gap: 6px; }
+  .c-actions .secondary { padding: 8px 10px; font-size: 0.88rem; }
+  .c-actions .c-submit { min-width: 76px; padding: 8px 16px; }
+}
