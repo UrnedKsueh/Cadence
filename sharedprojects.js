@@ -2,7 +2,7 @@
 // and update the status of their own stages. Runs after cloud.js.
 import { getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, getDoc, collection, query, where, orderBy, limit, getDocs, addDoc, updateDoc, deleteDoc, serverTimestamp }
+import { getFirestore, doc, getDoc, collection, query, where, orderBy, limit, getDocs, addDoc, setDoc, updateDoc, deleteDoc, arrayUnion, serverTimestamp }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const db = getFirestore(getApp());
@@ -66,6 +66,15 @@ function safeLink(v) {
   return /^https:\/\/[^\s]+$/i.test(t) ? t : "";
 }
 
+const MAX_LINKS = 5;
+function cleanLinks(s) {
+  let out = (Array.isArray(s.links) ? s.links : []).map(function (l) {
+    return { label: String((l && l.label) || "").trim().slice(0, 30), url: safeLink(l && l.url) };
+  }).filter(function (l) { return l.url; }).slice(0, MAX_LINKS);
+  if (!out.length && safeLink(s.link)) out = [{ label: "Files", url: safeLink(s.link) }];
+  return out;
+}
+
 function clean(p) {
   p.members = Array.isArray(p.members) ? p.members : [];
   p.names = p.names && typeof p.names === "object" ? p.names : {};
@@ -77,7 +86,7 @@ function clean(p) {
       status: STATUS.indexOf(s.status) >= 0 ? s.status : "To do",
       due: DATE_RE.test(String(s.due || "")) ? String(s.due) : "",
       note: String(s.note || "").slice(0, 300),
-      link: safeLink(s.link)
+      links: cleanLinks(s)
     };
   });
   return p;
@@ -175,7 +184,10 @@ function stageRow(p, stage, i) {
     st.value = stage.status;
     st.onchange = async function () {
       stage.status = st.value;
-      if (await patch(p, { stages: p.stages })) render();
+      if (await patch(p, { stages: p.stages })) {
+        if (window.CadenceChat) window.CadenceChat.log(p, stage.id, ((p.names && p.names[me.uid]) || me.displayName || "Someone") + " set " + stage.name + " to " + stage.status);
+        render();
+      }
     };
     row.appendChild(st);
   } else {
@@ -188,6 +200,7 @@ function stageRow(p, stage, i) {
     (i === 0 || p.stages[i - 1].status === "Done");
   if (ready) row.appendChild(mk("span", "chip sp-ready", "Ready for you"));
   if (me && stage.assignee === me.uid && stage.status === "Needs changes") row.appendChild(mk("span", "chip sp-ready", "Changes requested"));
+  if (window.CadenceChat) row.appendChild(window.CadenceChat.stageButton(p, stage));
   li.appendChild(row);
 
   if (admin) {
@@ -210,35 +223,74 @@ function stageRow(p, stage, i) {
   }
 
   if (stage.note) li.appendChild(mk("p", "sp-note", stage.note));
-  if (stage.link) {
-    const a = mk("a", "sp-link", "Open files link");
-    a.href = stage.link; a.target = "_blank"; a.rel = "noopener noreferrer";
-    li.appendChild(a);
+  if (stage.links.length) {
+    const box = mk("div", "sp-links");
+    stage.links.forEach(function (l, k) {
+      const a = mk("a", "sp-link", l.label || (stage.links.length > 1 ? "Link " + (k + 1) : "Open files link"));
+      a.href = l.url; a.target = "_blank"; a.rel = "noopener noreferrer";
+      box.appendChild(a);
+    });
+    li.appendChild(box);
   }
   if (canEdit(p, stage)) {
     const det = mk("details", "sp-edit");
-    det.appendChild(mk("summary", "", stage.note || stage.link ? "Edit note and link" : "Add note or link"));
+    det.appendChild(mk("summary", "", stage.note || stage.links.length ? "Edit note and links" : "Add note or links"));
     const form = mk("form", "sp-edit-form");
     form.autocomplete = "off";
     const note = mk("textarea", "field");
     note.rows = 2; note.maxLength = 300; note.value = stage.note;
     note.placeholder = "Note for the team, e.g. v2 uploaded, check shot 14";
     note.setAttribute("aria-label", "Note for " + stage.name);
-    const link = mk("input", "field");
-    link.type = "url"; link.maxLength = 300; link.value = stage.link;
-    link.placeholder = "Drive or Dropbox link (https://...)";
-    link.setAttribute("aria-label", "Files link for " + stage.name);
+    form.appendChild(note);
+    form.appendChild(mk("small", "hint", "Links to Drive or Dropbox files. Name each one, e.g. v1, v2, final."));
+    const rows = mk("div", "sp-link-rows");
+    const draft = stage.links.map(function (l) { return { label: l.label, url: l.url }; });
+    function drawRows() {
+      rows.textContent = "";
+      draft.forEach(function (l, k) {
+        const r = mk("div", "sp-link-row");
+        const lab = mk("input", "field");
+        lab.maxLength = 30; lab.value = l.label; lab.placeholder = "Name, e.g. v2";
+        lab.setAttribute("aria-label", "Name of link " + (k + 1));
+        lab.oninput = function () { l.label = lab.value; };
+        const url = mk("input", "field");
+        url.type = "url"; url.maxLength = 300; url.value = l.url; url.placeholder = "https://...";
+        url.setAttribute("aria-label", "Address of link " + (k + 1));
+        url.oninput = function () { l.url = url.value; };
+        const rm = mk("button", "secondary sp-x", "Remove");
+        rm.type = "button";
+        rm.setAttribute("aria-label", "Remove link " + (k + 1));
+        rm.onclick = function () { draft.splice(k, 1); drawRows(); };
+        r.appendChild(lab); r.appendChild(url); r.appendChild(rm);
+        rows.appendChild(r);
+      });
+    }
+    drawRows();
+    form.appendChild(rows);
+    const addLink = mk("button", "secondary sp-x", "Add a link");
+    addLink.type = "button";
+    addLink.onclick = function () {
+      if (draft.length >= MAX_LINKS) { say("Up to " + MAX_LINKS + " links per stage."); return; }
+      draft.push({ label: "", url: "" }); drawRows();
+    };
+    form.appendChild(addLink);
     const save = mk("button", "", "Save");
     save.type = "submit";
-    form.appendChild(note); form.appendChild(link); form.appendChild(save);
+    form.appendChild(save);
     form.onsubmit = async function (e) {
       e.preventDefault();
-      const raw = link.value.trim();
-      const ok = safeLink(raw);
-      if (raw && !ok) { say("Links must start with https://"); return; }
+      const links = [];
+      for (let k = 0; k < draft.length; k++) {
+        const raw = String(draft[k].url || "").trim();
+        if (!raw) continue;
+        const ok = safeLink(raw);
+        if (!ok) { say("Links must start with https://"); return; }
+        links.push({ label: String(draft[k].label || "").trim().slice(0, 30), url: ok });
+      }
       say("");
       stage.note = note.value.trim().slice(0, 300);
-      stage.link = ok;
+      stage.links = links;
+      delete stage.link;
       if (await patch(p, { stages: p.stages })) render();
     };
     det.appendChild(form);
@@ -304,6 +356,60 @@ function memberBar(p) {
   return box;
 }
 
+const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+function makeCode() {
+  const b = new Uint8Array(8);
+  crypto.getRandomValues(b);
+  return Array.from(b, function (x) { return CODE_CHARS[x % 32]; }).join("");
+}
+function normCode(v) { return String(v || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); }
+function showCode(c) { return c.slice(0, 4) + "-" + c.slice(4); }
+
+function inviteBox(p) {
+  const box = mk("div", "sp-members sp-invite");
+  box.appendChild(mk("h3", "", "Invite code"));
+  const row = mk("div", "sp-row");
+  async function make() {
+    const code = makeCode();
+    try {
+      await setDoc(doc(db, "invites", code), { pid: p.id, name: p.name, active: true, createdBy: me.uid, createdAt: serverTimestamp() });
+      if (p.inviteCode) { try { await deleteDoc(doc(db, "invites", p.inviteCode)); } catch (e) {} }
+      if (await patch(p, { inviteCode: code })) render();
+    } catch (e) { say("Couldn't create a code. Make sure the invite rules are published in Firebase."); }
+  }
+  if (p.inviteCode) {
+    row.appendChild(mk("strong", "sp-code", showCode(p.inviteCode)));
+    const copy = mk("button", "secondary sp-x", "Copy");
+    copy.type = "button";
+    copy.onclick = async function () {
+      try { await navigator.clipboard.writeText(showCode(p.inviteCode)); say("Code copied. Send it to your classmates."); }
+      catch (e) { say("Couldn't copy. Select the code and copy it by hand."); }
+    };
+    const fresh = mk("button", "secondary sp-x", "New code");
+    fresh.type = "button";
+    fresh.onclick = function () { if (confirm("Make a new code? The old one stops working.")) make(); };
+    const off = mk("button", "secondary sp-x", "Turn off");
+    off.type = "button";
+    off.onclick = async function () {
+      try {
+        await deleteDoc(doc(db, "invites", p.inviteCode));
+        if (await patch(p, { inviteCode: "" })) render();
+      } catch (e) { say("Couldn't turn off the code. Check your connection and try again."); }
+    };
+    row.appendChild(copy); row.appendChild(fresh); row.appendChild(off);
+    box.appendChild(row);
+    box.appendChild(mk("p", "hint", "Anyone signed in who enters this code joins the project. Members can see the code too."));
+  } else {
+    const on = mk("button", "secondary", "Create invite code");
+    on.type = "button";
+    on.onclick = make;
+    row.appendChild(on);
+    box.appendChild(row);
+    box.appendChild(mk("p", "hint", "Lets students join on their own, so you don't add each handle."));
+  }
+  return box;
+}
+
 function stageAdder(p) {
   const form = mk("form", "sp-row sp-add");
   form.autocomplete = "off";
@@ -319,7 +425,7 @@ function stageAdder(p) {
     const name = input.value.trim();
     if (!name) return;
     if (p.stages.length >= MAX_STAGES) { say("A project can have up to " + MAX_STAGES + " stages."); return; }
-    const stages = p.stages.concat({ id: newId(), name: name.slice(0, 60), assignee: "", status: "To do", due: "" });
+    const stages = p.stages.concat({ id: newId(), name: name.slice(0, 60), assignee: "", status: "To do", due: "", links: [] });
     if (await patch(p, { stages: stages })) render();
   };
   return form;
@@ -349,6 +455,7 @@ function card(p) {
   bar.appendChild(fill);
   li.appendChild(bar);
 
+  if (window.CadenceChat) li.appendChild(window.CadenceChat.button(p));
   const toggle = mk("button", "secondary sp-toggle", isOpen ? "Hide details" : "Show details");
   toggle.type = "button";
   toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
@@ -363,12 +470,14 @@ function card(p) {
     body.appendChild(stages);
     if (admin) body.appendChild(stageAdder(p));
     body.appendChild(memberBar(p));
+    if (admin) body.appendChild(inviteBox(p));
     if (admin) {
       const del = mk("button", "secondary sp-delete", "Delete project");
       del.type = "button";
       del.onclick = async function () {
         if (!confirm("Delete \"" + p.name + "\" for everyone? This can't be undone.")) return;
         try {
+          if (p.inviteCode) { try { await deleteDoc(doc(db, "invites", p.inviteCode)); } catch (e) {} }
           await deleteDoc(doc(db, "sharedProjects", p.id));
           open.delete(p.id);
           await load(true);
@@ -444,6 +553,7 @@ function render() {
   window.dispatchEvent(new CustomEvent("cadence:sharedprojects:changed"));
   $("sharedSection").hidden = !me;
   $("sharedAdd").hidden = !admin;
+  $("sharedJoin").hidden = !me || admin;
   const list = $("sharedList");
   list.textContent = "";
   projects.forEach(function (p) { list.appendChild(card(p)); });
@@ -463,7 +573,7 @@ $("sharedForm").onsubmit = async function (e) {
   if (!name) return;
   const btn = e.submitter; if (btn) btn.disabled = true;
   const tpl = TEMPLATES[Number($("sharedTemplate").value)] || TEMPLATES[0];
-  const stages = tpl.stages.map(function (n) { return { id: newId(), name: n, assignee: "", status: "To do", due: "" }; });
+  const stages = tpl.stages.map(function (n) { return { id: newId(), name: n, assignee: "", status: "To do", due: "", links: [] }; });
   try {
     const ref = await addDoc(collection(db, "sharedProjects"), {
       name: name.slice(0, 80), course: $("sharedCourse").value.trim().slice(0, 40), due: $("sharedDue").value || "",
@@ -476,6 +586,39 @@ $("sharedForm").onsubmit = async function (e) {
     await load(true);
   } catch (err) {
     say("Couldn't create the project. Make sure the shared project rules are published and your account is in the admins collection.");
+  }
+  if (btn) btn.disabled = false;
+};
+$("joinForm").onsubmit = async function (e) {
+  e.preventDefault();
+  if (!me) return;
+  const code = normCode($("joinCode").value);
+  if (code.length !== 8) { say("Codes have 8 letters and numbers, like K7MQ-4XWD."); return; }
+  const btn = e.submitter; if (btn) btn.disabled = true;
+  try {
+    const inv = await getDoc(doc(db, "invites", code));
+    if (!inv.exists() || inv.data().active !== true) { say("That code isn't valid, or it was turned off. Ask for a new one."); }
+    else {
+      const pid = String(inv.data().pid || "");
+      if (projects.some(function (p) { return p.id === pid; })) { say("You're already in that project."); }
+      else {
+        let nick = me.displayName || "Member";
+        try {
+          const prof = await getDoc(doc(db, "profiles", me.uid));
+          if (prof.exists() && prof.data().nickname) nick = String(prof.data().nickname);
+        } catch (err) {}
+        const f = { members: arrayUnion(me.uid), joinCode: code };
+        f["names." + me.uid] = nick.slice(0, 30);
+        await updateDoc(doc(db, "sharedProjects", pid), f);
+        $("joinForm").reset();
+        $("sharedJoin").open = false;
+        open.add(pid);
+        await load(true);
+        say("You joined " + String(inv.data().name || "the project") + ".");
+      }
+    }
+  } catch (err) {
+    say("Couldn't join. Check the code and your connection, and that the updated rules are published in Firebase.");
   }
   if (btn) btn.disabled = false;
 };
@@ -502,5 +645,6 @@ window.CadenceSharedProjects = {
   list: function () { return projects; },
   uid: function () { return me ? me.uid : ""; },
   reload: function () { return load(true); },
+  rerender: function () { render(); },
   show: showProject
 };

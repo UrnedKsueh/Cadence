@@ -171,6 +171,14 @@
         </div>
       </form>
     </details>
+    <details class="shots add-piece" id="sharedJoin" hidden>
+      <summary>Join with a code</summary>
+      <form id="joinForm" autocomplete="off">
+        <label for="joinCode">Invite code</label>
+        <input id="joinCode" class="field" placeholder="e.g. K7MQ-4XWD" maxlength="9" autocapitalize="characters" autocomplete="off" required enterkeyhint="done">
+        <div class="form-actions"><button type="submit">Join project</button></div>
+      </form>
+    </details>
     <p class="hint show-msg" id="sharedMsg" role="status" aria-live="polite" hidden></p>
     <ul id="sharedList"></ul>
     <div class="empty show-empty" id="sharedEmpty" hidden><p></p></div>
@@ -524,8 +532,11 @@
     <p class="hint" id="shareMsg" aria-live="polite"></p>
   </section>
   </div>
+  <div class="admin-zone">
+  <p class="admin-zone-label">Admin tools</p>
   <section id="adminSection" aria-labelledby="adminTitle" hidden>
-    <h2 id="adminTitle">Admin: announcements</h2>
+    <details class="admin-fold">
+    <summary><h2 id="adminTitle">Announcements</h2></summary>
     <p class="hint">Posts show as a banner on every student's Home tab until they dismiss it.</p>
     <form id="announceForm" autocomplete="off">
       <label for="announceTitle">Title</label>
@@ -536,10 +547,12 @@
     </form>
     <p class="hint" id="announceMsg" aria-live="polite"></p>
     <ul id="announceAdminList" class="announce-admin-list"></ul>
+    </details>
   </section>
 
   <section id="adminResSection" aria-labelledby="adminResTitle" hidden>
-    <h2 id="adminResTitle">Admin: resources</h2>
+    <details class="admin-fold">
+    <summary><h2 id="adminResTitle">Resources</h2></summary>
     <p class="hint">Adds a card to every student's Resources tab. Delete one from the Resources tab with the Delete button.</p>
     <form id="resForm" autocomplete="off">
       <label for="resTitleIn">Title</label>
@@ -553,7 +566,9 @@
       <button type="submit" id="resSubmit">Add resource</button>
     </form>
     <p class="hint" id="resAdminMsg" aria-live="polite"></p>
+    </details>
   </section>
+  </div>
   <section aria-labelledby="backupTitle">
     <h2 id="backupTitle">Backup</h2>
     <p class="hint">Your data is always saved in this browser. Export a copy now and then, especially before clearing browser data.</p>
@@ -591,6 +606,7 @@
 <script type="module" src="feed.js"></script>
 <script type="module" src="resources.js"></script>
 <script type="module" src="sharedprojects.js"></script>
+<script type="module" src="chat.js"></script>
 <script src="calendar.js"></script>
 <script src="pwa.js"></script>
 <div class="sheet-backdrop" id="dlBackdrop" hidden></div>
