@@ -1098,3 +1098,56 @@ html.share-view #shareView { display: block; max-width: 720px; margin: 0 auto; p
 @media (min-width: 900px) and (orientation: landscape) {
   .home-feed .res-card { box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08); }
 }
+
+/* v41: portrait / narrow home. Landscape (900px+) keeps its dashboard above. */
+.home-pill, .sheet-head .sheet-close, .sheet-backdrop { display: none; }
+@media not all and (min-width: 900px) and (orientation: landscape) {
+  .home-grid { display: flex; flex-direction: column; gap: 14px; }
+  .home-main, .home-side { display: contents; }
+  .home-feed .home-hello { display: block; margin: 0 0 16px; }
+  .home-feed .home-hello h2 { font-size: 1.6rem; margin: 0 0 4px; letter-spacing: -0.02em; }
+  .home-feed .home-hello .hint { margin: 0; }
+
+  .home-pill { display: flex; order: 1; align-items: center; justify-content: space-between; gap: 10px; }
+  .pill-seg { display: flex; gap: 4px; padding: 4px; border-radius: 999px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.06); }
+  .pill-seg button { min-height: 40px; padding: 6px 18px; border-radius: 999px; background: transparent; color: var(--muted); border: 0; font-weight: 600; font-size: 0.92rem; }
+  .pill-seg button:hover { filter: none; color: var(--text); }
+  .pill-seg button[aria-selected="true"] { background: color-mix(in srgb, var(--accent) 20%, transparent); color: var(--text); }
+
+  .home-side > section[data-side-panel="overview"], .home-side > section[data-side-panel="calendar"] { order: 2; }
+  .home-grid[data-view="overview"] > .home-side > section[data-side-panel="calendar"],
+  .home-grid[data-view="calendar"] > .home-side > section[data-side-panel="overview"] { display: none; }
+  .home-main .composer { order: 3; }
+  .home-main .home-feed { order: 4; }
+  .home-grid > *, .home-main > *, .home-side > section { margin-top: 0; margin-bottom: 0; }
+
+  .home-side > section[data-side-panel], .home-main .composer:not([hidden]), .home-feed .post, .home-feed .res-card {
+    background: var(--panel); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08);
+  }
+  .home-main .composer:not([hidden]) { display: grid; margin: 0; }
+
+  /* Overview: the pill names the view, so the title is visual-hidden and the filter sits right */
+  .home-side #overviewTitle { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  .home-side .ov-head { display: block; margin: 0; }
+  .home-pill .ov-filter { flex: 0 1 190px; width: auto; max-width: 52%; margin-left: auto; }
+  .home-pill .ov-filter .field { min-height: 48px; border-radius: 999px; padding-left: 16px; }
+  .home-side .stats { gap: 8px; }
+  .home-side .stat { padding: 12px 10px; }
+  .home-side .stat strong { font-size: 1.7rem; }
+  .home-side .stat small, .home-side .stat span { font-size: 0.72rem; }
+  .home-side .next { padding: 16px; }
+
+  /* Community */
+  .home-feed h2 { margin: 0 0 4px; }
+  .home-feed .feed-list { margin-top: 8px; }
+
+  /* Deadlines: bottom sheet */
+  #deadlinesSheet { display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 30; max-height: 88vh; max-height: 88dvh; overflow-y: auto; margin: 0; border-radius: 22px 22px 0 0; border-bottom: 0; padding: 16px 18px calc(24px + env(safe-area-inset-bottom, 0px)); box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.28); overscroll-behavior: contain; }
+  #deadlinesSheet.sheet-open { display: block; }
+  .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+  .sheet-head h2 { margin: 0; }
+  .sheet-head .sheet-close { display: inline-flex; align-items: center; justify-content: center; width: 44px; min-height: 44px; padding: 0; border-radius: 50%; }
+  .sheet-backdrop { display: block; position: fixed; inset: 0; z-index: 29; background: rgba(8, 12, 20, 0.5); }
+  .sheet-backdrop[hidden] { display: none; }
+  body.dl-open { overflow: hidden; }
+}

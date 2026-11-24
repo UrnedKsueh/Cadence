@@ -891,7 +891,7 @@ function renderNotifications() {
       setNotifOpen(false);
       renderNotifications();
       if (n.kind === "project") window.showTab("projects");
-      else { window.showTab("home"); $("deadlineList").scrollIntoView({ block: "start" }); }
+      else { window.showTab("home"); if (!(window.openDeadlines && window.openDeadlines(false))) $("deadlineList").scrollIntoView({ block: "start" }); }
     };
     li.appendChild(main);
 
@@ -963,8 +963,10 @@ function renderDashboard() {
     $("nextWhen").textContent = "You're all caught up.";
     button.textContent = "Add a deadline";
     button.onclick = function () {
-      $("deadlineForm").scrollIntoView({ block: "center" });
-      $("deadlineName").focus();
+      if (!(window.openDeadlines && window.openDeadlines(true))) {
+        $("deadlineForm").scrollIntoView({ block: "center" });
+        $("deadlineName").focus();
+      }
     };
     return;
   }
@@ -975,7 +977,7 @@ function renderDashboard() {
   $("nextWhen").textContent = describe(left) + (first.course ? " · " + first.course : "");
   button.textContent = "See all deadlines";
   button.onclick = function () {
-    $("deadlineList").scrollIntoView({ block: "start" });
+    if (!(window.openDeadlines && window.openDeadlines(false))) $("deadlineList").scrollIntoView({ block: "start" });
   };
 }
 
