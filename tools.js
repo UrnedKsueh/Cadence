@@ -268,4 +268,53 @@
     });
     run();
   })();
+
+  // ===== Calendar export: open deadlines and project due dates as .ics events =====
+  (function () {
+    const btn = $id("icsBtn");
+    if (!btn) return;
+    function esc(x) { return String(x).replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n"); }
+    function ymd(d) { return d.replace(/-/g, ""); }
+    function nextDay(d) {
+      const x = new Date(d + "T00:00:00Z");
+      x.setUTCDate(x.getUTCDate() + 1);
+      return x.toISOString().slice(0, 10).replace(/-/g, "");
+    }
+    btn.onclick = function () {
+      const msg = $id("icsMsg");
+      const items = [];
+      deadlines.forEach(function (d) {
+        if (!d.done) items.push({ id: d.id, name: d.name, date: d.date, course: d.course, kind: "Deadline" });
+      });
+      projects.forEach(function (p) {
+        if (p.due && p.stage < STAGES.length - 1) items.push({ id: p.id, name: p.name, date: p.due, course: p.course, kind: "Project due" });
+      });
+      if (!items.length) { msg.textContent = "Nothing to export yet. Add a deadline or a project due date."; return; }
+      const stamp = new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
+      const lines = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Cadence//EN", "CALSCALE:GREGORIAN"];
+      items.forEach(function (it) {
+        lines.push("BEGIN:VEVENT",
+          "UID:" + it.kind.replace(/ /g, "").toLowerCase() + "-" + it.id + "@cadence",
+          "DTSTAMP:" + stamp,
+          "DTSTART;VALUE=DATE:" + ymd(it.date),
+          "DTEND;VALUE=DATE:" + nextDay(it.date),
+          "SUMMARY:" + esc(it.name + (it.course ? " (" + it.course + ")" : "")),
+          "DESCRIPTION:" + esc(it.kind + " from Cadence"),
+          "BEGIN:VALARM", "ACTION:DISPLAY", "DESCRIPTION:" + esc(it.name + " is due tomorrow"), "TRIGGER:-P1D", "END:VALARM",
+          "END:VEVENT");
+      });
+      lines.push("END:VCALENDAR");
+      const blob = new Blob([lines.join("\r\n") + "\r\n"], { type: "text/calendar" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "cadence-deadlines.ics";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+      msg.textContent = "Exported " + items.length + (items.length === 1 ? " event" : " events") + ". Open the file to add them to your calendar, each with a 1-day-before reminder.";
+    };
+  })();
+
 })();

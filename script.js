@@ -26,7 +26,12 @@ function cleanDeadline(d) {
 // Pipeline stages follow the usual animation workflow (pre-production -> production -> post)
 const STAGES = ["Script", "Storyboard", "Animatic", "Layout", "Animation",
   "Lighting & render", "Compositing", "Sound & edit", "Delivered"];
-const SHOT_STATUS = ["To do", "Animating", "Review", "Done"];
+const SHOT_STATUS = ["To do", "Blocking", "Spline", "Polish", "Review", "Render", "Done"];
+// Older saves used a single "Animating" status: treat it as Blocking
+const SHOT_STATUS_COLORS = { "To do": "#6b7683", "Blocking": "#e0a64f", "Spline": "#d9824f", "Polish": "#b86fd0",
+  "Review": "#5f9fe0", "Render": "#4fc3d9", "Done": "#4fc3a1" };
+// These match the limits in the Firestore rules. Past them, cloud sync would be rejected.
+const LIMITS = { deadlines: 200, projects: 10, showcase: 20 };
 const FPS_CHOICES = [12, 23.976, 24, 25, 29.97, 30, 60];
 const PRINCIPLES = ["Squash & stretch", "Anticipation", "Staging", "Straight ahead & pose to pose",
   "Follow through & overlapping action", "Slow in & slow out", "Arcs", "Secondary action",
@@ -44,9 +49,11 @@ function cleanShot(s) {
   return {
     id: typeof s.id === "string" ? s.id : uid(),
     name: s.name.trim().slice(0, 80),
-    status: SHOT_STATUS.indexOf(s.status) >= 0 ? s.status : "To do",
+    status: SHOT_STATUS.indexOf(s.status === "Animating" ? "Blocking" : s.status) >= 0
+      ? (s.status === "Animating" ? "Blocking" : s.status) : "To do",
     frames: num(s.frames, 0, 100000),
     version: num(s.version, 1, 999),
+    minutes: num(s.minutes, 0, 99999),
     log: log,
     checks: checks
   };
@@ -309,6 +316,7 @@ $("deadlineForm").onsubmit = function (event) {
   const name = $("deadlineName").value.trim();
   const date = $("deadlineDate").value;
   if (name === "" || date === "") return;
+  if (deadlines.length >= LIMITS.deadlines) { alert("You have " + LIMITS.deadlines + " deadlines. Delete finished ones before adding more."); return; }
 
   deadlines.push(cleanDeadline({
     name: name,
@@ -520,6 +528,26 @@ function shotsPanel(p) {
   };
   details.appendChild(el("summary", "", "Shots (" + done + "/" + p.shots.length + " done)"));
 
+  // Pipeline overview: one coloured segment per shot status
+  if (p.shots.length) {
+    const mix = el("div", "status-mix");
+    mix.setAttribute("role", "img");
+    const parts = [];
+    SHOT_STATUS.forEach(function (st) {
+      const n = p.shots.filter(function (x) { return x.status === st; }).length;
+      if (!n) return;
+      parts.push(st + " " + n);
+      const seg = el("span", "");
+      seg.style.flexGrow = n;
+      seg.style.backgroundColor = SHOT_STATUS_COLORS[st];
+      seg.title = st + ": " + n;
+      mix.appendChild(seg);
+    });
+    mix.setAttribute("aria-label", "Shot pipeline: " + parts.join(", "));
+    details.appendChild(mix);
+    details.appendChild(el("p", "hint", parts.join(" · ")));
+  }
+
   // Runtime budget: total frames against the target film length
   const frames = p.shots.reduce(function (n, s) { return n + s.frames; }, 0);
   const secs = frames / p.fps;
@@ -549,6 +577,16 @@ function shotsPanel(p) {
   bar.appendChild(fill);
   details.appendChild(bar);
   details.appendChild(el("p", "result", text));
+  const spent = p.shots.reduce(function (n, x) { return n + x.minutes; }, 0);
+  if (spent) {
+    const doneShots = p.shots.filter(function (x) { return x.status === "Done" && x.minutes; });
+    let t = "Time logged: " + formatDuration(spent);
+    if (doneShots.length) {
+      const avg = doneShots.reduce(function (n, x) { return n + x.minutes; }, 0) / doneShots.length;
+      t += " (about " + formatDuration(avg) + " per finished shot)";
+    }
+    details.appendChild(el("p", "hint", t));
+  }
 
   p.shots.forEach(function (shot) {
     const wrap = el("div", "shot-wrap");
@@ -583,6 +621,26 @@ function shotsPanel(p) {
     }, "Version of shot \"" + shot.name + "\""));
     meta.appendChild(el("small", "", "version"));
 
+    // Time tracking: tap to add time you worked on this shot
+    const timeRow = el("div", "shot-time");
+    const worked = el("small", "", "Worked: " + (shot.minutes ? formatDuration(shot.minutes) : "none yet"));
+    timeRow.appendChild(worked);
+    [["+15m", 15], ["+30m", 30], ["+1h", 60]].forEach(function (q) {
+      const b = el("button", "secondary chip-btn", q[0]);
+      b.type = "button";
+      b.setAttribute("aria-label", "Add " + q[0].slice(1) + " to shot \"" + shot.name + "\"");
+      b.onclick = function () { shot.minutes = Math.min(99999, shot.minutes + q[1]); openShots.add(p.id); saveProjects(); };
+      timeRow.appendChild(b);
+    });
+    if (shot.minutes) {
+      const undo = el("button", "secondary chip-btn", "Reset");
+      undo.type = "button";
+      undo.setAttribute("aria-label", "Reset time for shot \"" + shot.name + "\"");
+      undo.onclick = function () { shot.minutes = 0; openShots.add(p.id); saveProjects(); };
+      timeRow.appendChild(undo);
+    }
+    meta.appendChild(timeRow);
+
     wrap.appendChild(row);
     wrap.appendChild(meta);
     wrap.appendChild(shotDetail(p, shot));
@@ -604,6 +662,7 @@ function shotsPanel(p) {
     event.preventDefault();
     const shot = cleanShot({ name: input.value, status: "To do" });
     if (!shot) return;
+    if (p.shots.length >= Storage.LIMITS.shotsPerProject) { alert("A project can have up to " + Storage.LIMITS.shotsPerProject + " shots."); return; }
     p.shots.push(shot);
     openShots.add(p.id);
     saveProjects();
@@ -688,6 +747,7 @@ $("projectForm").onsubmit = function (event) {
   event.preventDefault();
   const name = $("projectName").value.trim();
   if (name === "") return;
+  if (projects.length >= LIMITS.projects) { alert("You can keep up to " + LIMITS.projects + " projects. Remove a finished one first."); return; }
 
   projects.push(cleanProject({
     name: name,
@@ -1240,6 +1300,13 @@ function showCard(s, big) {
     card.appendChild(el("small", "hint", "No video link yet. Tap ✎ to add one."));
   }
   if (!big) {
+    if (window.CadenceFeed && window.CadenceFeed.ready()) {
+      const isPosted = window.CadenceFeed.isPosted(s.id);
+      const feedBtn = el("button", "secondary", isPosted ? "Remove from feed" : "Post to feed");
+      feedBtn.type = "button";
+      feedBtn.onclick = function () { if (isPosted) window.CadenceFeed.unpost(s.id); else window.CadenceFeed.post(s); };
+      actions.appendChild(feedBtn);
+    }
     actions.appendChild(editButton(s.title, s.id));
     const del = el("button", "remove", "✕");
     del.type = "button";
@@ -1346,7 +1413,7 @@ function renderShowcase() {
 }
 
 function addFromProject(p) {
-  if (showcase.length >= 40) { alert("The Showcase is full (40 pieces). Remove one first."); return; }
+  if (showcase.length >= LIMITS.showcase) { alert("The Showcase is full (" + LIMITS.showcase + " pieces). Remove one first."); return; }
   const entry = cleanShow({ title: p.name, course: p.course, year: new Date().getFullYear() });
   showcase.push(entry);
   store(KEYS.showcase, showcase);
@@ -1366,7 +1433,7 @@ $("showForm").onsubmit = function (event) {
       note: $("showNote").value, thumb: thumb
     });
     if (!entry) return;
-    if (showcase.length >= 40) { alert("The Showcase is full (40 pieces). Remove one first."); return; }
+    if (showcase.length >= LIMITS.showcase) { alert("The Showcase is full (" + LIMITS.showcase + " pieces). Remove one first."); return; }
     showcase.push(entry);
     if (!store(KEYS.showcase, showcase)) {
       showcase.pop();
