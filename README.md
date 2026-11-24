@@ -76,7 +76,7 @@ Admins can post announcements and manage resources from their Profile page.
 
 ## Updating
 
-Upload the changed files to the repo, commit, wait a minute or two, then hard refresh. If you change files, bump the cache name in `sw.js` (for example `cadence-v56`) so installed copies update.
+Upload the changed files to the repo, commit, wait a minute or two, then hard refresh. If you change files, bump the cache name in `sw.js` so installed copies update.
 
 ## Security
 
