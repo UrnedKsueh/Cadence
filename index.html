@@ -50,7 +50,7 @@
       <p class="notif-empty" id="notifEmpty" hidden>You're all caught up.</p>
     </div>
     </div>
-    <button type="button" class="avatar-btn" id="avatarBtn" aria-label="Open profile"><span class="avatar" id="headerAvatar"></span></button>
+    <button type="button" class="avatar-btn" id="avatarBtn" aria-label="Open profile"><span class="avatar" id="headerAvatar"></span><span class="bell-count" id="avatarBadge" hidden>0</span></button>
     </div>
   </header>
 
@@ -88,7 +88,7 @@
       <div class="feed-list home-feed-list"></div>
     </section>
   </div>
-  <div class="home-side" id="homeSide">
+  <div class="home-side">
   <div class="home-pill" id="homePill">
     <div class="pill-seg" role="tablist" aria-label="Home view">
       <button type="button" role="tab" id="pillOverview" data-view="overview" aria-selected="true">Overview</button>
@@ -109,7 +109,7 @@
       <div class="stats">
         <article class="stat tint-a"><small>Due soon</small><strong id="statWeek">0</strong><span id="statWeekSub">Next 7 days</span></article>
         <article class="stat tint-b"><small>Projects</small><strong id="statProjects">0</strong><span id="statProjectsSub">In progress</span></article>
-        <article class="stat tint-c"><small>Showcase</small><strong id="statShow">0</strong><span id="statShowSub">Finished pieces</span></article>
+        <article class="stat tint-c"><small>Showcase</small><strong id="statShow">0</strong><span>Finished pieces</span></article>
       </div>
       <article class="next" id="nextCard">
         <small>Next up</small>
@@ -346,7 +346,7 @@
       <input id="resSearch" class="field" type="search" placeholder="Search resources" aria-label="Search resources">
       <div class="res-pills" id="resPills" role="group" aria-label="Filter by category"></div>
     </div>
-    <p class="hint res-msg" id="resMsg" aria-live="polite">Sign in with Google to see the resources.</p>
+    <p class="hint res-msg" aria-live="polite">Sign in with Google to see the resources.</p>
     <div class="res-list" id="resList"></div>
   </section>
   </div>
@@ -356,9 +356,49 @@
       <span class="avatar lg" id="profileAvatar"></span>
       <div class="who">
         <strong id="profileName">Guest</strong>
+        <small id="profileHandle" hidden></small>
         <small id="profileEmail">Not signed in</small>
+        <p class="hint soc-bio" id="profileBio" hidden></p>
       </div>
+      <button type="button" class="secondary" id="profEditBtn" hidden>Edit</button>
     </section>
+    <section id="socialSection" aria-labelledby="socialTitle" hidden>
+      <form id="profForm" class="soc-form" autocomplete="off" hidden>
+        <h2 id="socialTitle">Edit profile</h2>
+        <label for="pfNick">Nickname</label>
+        <input id="pfNick" class="field" maxlength="30" required placeholder="What friends see">
+        <label for="pfHandle">Handle</label>
+        <input id="pfHandle" class="field" maxlength="20" required autocapitalize="off" spellcheck="false" placeholder="letters, numbers, _ (3-20)">
+        <label for="pfCourse">Course (optional)</label>
+        <input id="pfCourse" class="field" list="courses" maxlength="60">
+        <label for="pfBio">Bio</label>
+        <textarea id="pfBio" class="field" rows="3" maxlength="160" placeholder="A line about you"></textarea>
+        <label>Avatar colour</label>
+        <div class="soc-colors" id="pfColors" role="group" aria-label="Avatar colour"></div>
+        <p class="hint" id="pfMsg" aria-live="polite"></p>
+        <div class="row"><button type="submit">Save</button><button type="button" class="secondary" id="pfCancel">Cancel</button></div>
+      </form>
+    </section>
+    <section id="friendsSection" aria-labelledby="friendsTitle" hidden>
+      <h2 id="friendsTitle">Friends</h2>
+      <form id="findForm" class="row" autocomplete="off">
+        <input id="findInput" class="field" aria-label="Find a friend by handle" placeholder="Find by handle, e.g. sam_draws" autocapitalize="off" spellcheck="false" enterkeyhint="search">
+        <button type="submit">Find</button>
+      </form>
+      <div id="personBox"></div>
+      <div id="reqWrap" hidden>
+        <h3 class="soc-h">Requests <span id="reqCount"></span></h3>
+        <div class="soc-list" id="reqList"></div>
+      </div>
+      <h3 class="soc-h">Your friends</h3>
+      <div class="soc-list" id="friendList"></div>
+      <p class="hint" id="friendEmpty">No friends yet. Find someone by their handle or send them your invite link.</p>
+      <details id="blockWrap" class="soc-block" hidden><summary>Blocked (<span id="blockCount">0</span>)</summary><div class="soc-list" id="blockList"></div></details>
+      <label class="soc-check"><input type="checkbox" id="friendShowToggle"> Let my friends see my Showcase</label>
+      <div class="row"><button type="button" class="secondary" id="inviteBtn">Copy my invite link</button></div>
+      <p class="hint" id="friendMsg" aria-live="polite"></p>
+    </section>
+    <p class="hint" id="socialSignedOut">Sign in to set up your profile and add friends.</p>
     <section aria-labelledby="syncTitle">
       <h2 id="syncTitle">Account and sync</h2>
       <p class="hint" id="syncStatus" aria-live="polite">Saved on this device only.</p>
@@ -513,6 +553,7 @@
 <script src="tools.js"></script>
 <script type="module" src="cloud.js"></script>
 <script type="module" src="share.js"></script>
+<script type="module" src="social.js"></script>
 <script type="module" src="feed.js"></script>
 <script type="module" src="resources.js"></script>
 <script src="calendar.js"></script>

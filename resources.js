@@ -2,12 +2,13 @@
 // Runs after cloud.js. Data lives in the "resources" collection; stars stay on the student's own device.
 import { getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, getDoc, deleteDoc, collection, query, orderBy, limit, getDocs, addDoc, serverTimestamp }
+import { getFirestore, doc, getDoc, deleteDoc, collection, query, orderBy, limit, getDocs, addDoc, updateDoc, serverTimestamp }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const db = getFirestore(getApp());
 const $ = function (id) { return document.getElementById(id); };
 const CATS = ["Tutorials", "References", "Software", "Inspiration", "Templates", "Other"];
+const TILE = ["#8fa8ff", "#c792ea", "#4fc3a1", "#f0b44c", "#5cc8e8", "#ff8a80"];
 const SAVED_KEY = "cadence:savedResources";
 
 let user = null;
@@ -37,6 +38,12 @@ function host(url) { try { return new URL(url).hostname.replace(/^www\./, ""); }
 function card(r, compact) {
   const c = mk("article", "res-card");
   const head = mk("div", "res-head");
+  const ci = CATS.indexOf(r.category) >= 0 ? CATS.indexOf(r.category) : CATS.length - 1;
+  const tile = mk("span", "res-tile", (r.title.trim().charAt(0) || "?").toUpperCase());
+  tile.setAttribute("aria-hidden", "true");
+  tile.style.color = TILE[ci];
+  tile.style.backgroundColor = "color-mix(in srgb, " + TILE[ci] + " 20%, var(--panel))";
+  head.appendChild(tile);
   const box = mk("div", "res-title");
   box.appendChild(mk("strong", "", r.title));
   const tags = mk("div", "tags");
@@ -78,12 +85,16 @@ function card(r, compact) {
     c.appendChild(f);
   }
   const row = mk("div", "row");
-  const a = mk("a", "btn secondary", "Open link");
+  const a = mk("a", "btn", "Open link");
   a.href = r.url;
   a.target = "_blank";
   a.rel = "noopener noreferrer";
   row.appendChild(a);
   if (admin && !compact) {
+    const edit = mk("button", "secondary", "Edit");
+    edit.type = "button";
+    edit.onclick = function () { c.replaceWith(editForm(r)); };
+    row.appendChild(edit);
     const del = mk("button", "secondary", "Delete");
     del.type = "button";
     del.onclick = async function () {
@@ -95,6 +106,41 @@ function card(r, compact) {
   }
   c.appendChild(row);
   return c;
+}
+
+function editForm(r) {
+  const f = mk("form", "res-card res-edit");
+  function field(label, el) { const l = mk("label", "", label); el.classList.add("field"); l.appendChild(el); f.appendChild(l); return el; }
+  const t = field("Title", mk("input")); t.value = r.title; t.maxLength = 100; t.required = true;
+  const u = field("Link", mk("input")); u.value = r.url; u.maxLength = 500; u.inputMode = "url"; u.autocapitalize = "off"; u.required = true;
+  const cat = field("Category", mk("select"));
+  CATS.forEach(function (c) { const o = mk("option", "", c); o.value = c; cat.appendChild(o); });
+  cat.value = r.category;
+  const d = field("Description", mk("textarea")); d.rows = 3; d.maxLength = 300; d.value = r.desc;
+  const msg = mk("p", "hint"); msg.setAttribute("aria-live", "polite"); f.appendChild(msg);
+  const row = mk("div", "row");
+  const save = mk("button", "", "Save"); save.type = "submit";
+  const cancel = mk("button", "secondary", "Cancel"); cancel.type = "button";
+  cancel.onclick = renderAll;
+  row.appendChild(save); row.appendChild(cancel); f.appendChild(row);
+  f.onsubmit = async function (e) {
+    e.preventDefault();
+    const title = t.value.trim().slice(0, 100), url = cleanUrl(u.value.trim());
+    if (!title) { msg.textContent = "Add a title."; return; }
+    if (!url) { msg.textContent = "That link doesn't look right."; return; }
+    const data = { title: title, url: url.slice(0, 500), category: cat.value, desc: d.value.trim().slice(0, 300) };
+    save.disabled = true;
+    try {
+      await updateDoc(doc(db, "resources", r.id), data);
+      items = items.map(function (x) { return x.id === r.id ? Object.assign({}, x, data) : x; });
+      renderAll();
+    } catch (err) {
+      save.disabled = false;
+      msg.textContent = "Couldn't save. Check your connection and that your rules let admins update resources.";
+    }
+  };
+  setTimeout(function () { t.focus(); }, 0);
+  return f;
 }
 
 function renderPills() {
