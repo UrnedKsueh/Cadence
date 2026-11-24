@@ -367,6 +367,8 @@ function renderProjects() {
     remove.type = "button";
     remove.setAttribute("aria-label", "Delete \"" + p.name + "\"");
     remove.onclick = function () {
+      const n = p.shots.length;
+      if (!confirm("Delete \"" + p.name + "\"" + (n ? " and its " + plural(n, "shot") : "") + "? This can't be undone.")) return;
       projects = projects.filter(function (x) { return x.id !== p.id; });
       store(KEYS.projects, projects);
       renderAll();
@@ -426,12 +428,30 @@ function renderProjects() {
       toShow.onclick = function () { addFromProject(p); };
       li.appendChild(toShow);
     }
-    li.appendChild(checklistPanel(p));
-    li.appendChild(shotsPanel(p));
+    // Checklist and shots live behind one toggle so the list stays short
+    const ticked = p.checklist.filter(function (x) { return x.done; }).length;
+    const shotsDone = p.shots.filter(function (x) { return x.status === "Done"; }).length;
+    const isOpen = openProjects.has(p.id);
+    const body = el("div", "project-body");
+    body.hidden = !isOpen;
+    body.appendChild(checklistPanel(p));
+    body.appendChild(shotsPanel(p));
+    const toggle = el("button", "secondary proj-toggle",
+      "Checklist " + ticked + "/" + p.checklist.length + " · Shots " + shotsDone + "/" + p.shots.length);
+    toggle.type = "button";
+    toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+    toggle.onclick = function () {
+      if (openProjects.has(p.id)) openProjects.delete(p.id); else openProjects.add(p.id);
+      renderAll();
+    };
+    li.appendChild(toggle);
+    li.appendChild(body);
+    li.dataset.id = p.id;
     list.appendChild(li);
   });
 }
 
+const openProjects = new Set();
 const openShots = new Set();
 const openLists = new Set();
 
@@ -757,12 +777,39 @@ $("projectForm").onsubmit = function (event) {
     shots: [],
     checklist: starterChecklist()
   }));
+  const added = projects[projects.length - 1];
   store(KEYS.projects, projects);
 
-  $("projectName").value = "";
-  $("projectDue").value = "";
+  $("projectForm").reset();
+  $("projectCourse").dispatchEvent(new Event("input")); // repaints the course chips
+  $("projectAdd").open = false;
+  courseFilter = "";
+  openProjects.clear(); // only the new project stays expanded
+  openProjects.add(added.id);
   renderAll();
-  $("projectName").focus();
+  projectMessage("Added “" + added.name + "”. Its checklist is ready to tick off.");
+  const li = $("projectList").querySelector('[data-id="' + added.id + '"]');
+  if (li) {
+    li.classList.add("just-added");
+    li.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }
+};
+
+let projectMsgTimer = null;
+function projectMessage(text) {
+  const m = $("projectMsg");
+  m.textContent = text;
+  m.hidden = !text;
+  clearTimeout(projectMsgTimer);
+  if (text) projectMsgTimer = setTimeout(function () { projectMessage(""); }, 6000);
+}
+$("projectAdd").addEventListener("toggle", function () {
+  if ($("projectAdd").open) { projectMessage(""); $("projectName").focus(); }
+});
+$("projectCancel").onclick = function () {
+  $("projectForm").reset();
+  $("projectCourse").dispatchEvent(new Event("input"));
+  $("projectAdd").open = false;
 };
 
 
@@ -1165,7 +1212,10 @@ function levelFromCourse(course) {
 
 function safeUrl(text) {
   try {
-    const u = new URL(String(text).trim());
+    let t = String(text || "").trim();
+    // Pasted "youtu.be/abc" or "www.vimeo.com/123" without a scheme still works
+    if (t && !/^[a-z][a-z0-9+.-]*:/i.test(t) && /^[^\s\/]+\.[^\s\/]{2,}/.test(t)) t = "https://" + t;
+    const u = new URL(t);
     return u.protocol === "https:" || u.protocol === "http:" ? u.href : "";
   } catch (error) {
     return "";
@@ -1312,6 +1362,7 @@ function showCard(s, big) {
     del.type = "button";
     del.setAttribute("aria-label", "Delete \"" + s.title + "\"");
     del.onclick = function () {
+      if (!confirm("Delete \"" + s.title + "\" from your Showcase?")) return;
       showcase = showcase.filter(function (x) { return x.id !== s.id; });
       store(KEYS.showcase, showcase);
       renderAll();
@@ -1346,6 +1397,8 @@ function renderLevelBar() {
   });
   [0, 1, 2, 3, 4].forEach(function (n) {
     const count = n === 0 ? base.length : base.filter(function (s) { return s.level === n; }).length;
+    // Skip year levels with nothing in them (unless it is the one currently selected)
+    if (n !== 0 && count === 0 && showLevel !== n) return;
     const btn = el("button", "level-chip" + (showLevel === n ? " on" : ""),
       (n === 0 ? "All" : LEVELS[n]) + " (" + count + ")");
     btn.type = "button";
@@ -1365,17 +1418,29 @@ function renderShowcase() {
   Array.from(tools).sort(function (a, b) { return a.localeCompare(b); })
     .forEach(function (t) { filter.appendChild(new Option(t, t)); });
   filter.value = showTool;
+  filter.hidden = tools.size === 0;
 
+  // Filters only appear once there is something to filter
+  $("showFilters").hidden = showcase.length === 0;
   renderLevelBar();
+  renderToolChips();
 
   const list = $("showList");
   list.innerHTML = "";
   const visible = visibleShowcase();
   $("showEmpty").hidden = visible.length > 0;
+  if (visible.length === 0) {
+    const filtered = showcase.length > 0;
+    $("showEmptyText").textContent = filtered
+      ? "No pieces match these filters."
+      : "Nothing here yet. Tap Add a piece above, or send a Delivered project here.";
+    $("showClear").hidden = !filtered;
+  }
   groupByLevel(visible, function (text) {
     list.appendChild(el("li", "show-group", text));
   }, function (s) {
     const li = el("li", "show-item");
+    li.dataset.id = s.id;
     if (s.id === editingId) {
       li.classList.add("editing");
       li.appendChild(editRow(s, "show-edit", [
@@ -1423,13 +1488,108 @@ function addFromProject(p) {
   $("showList").scrollIntoView({ block: "center" });
 }
 
+// ----- Add form helpers -----
+const COMMON_TOOLS = ["Blender", "After Effects", "Maya", "Photoshop", "Procreate", "Toon Boom Harmony", "Premiere Pro"];
+let showMsgTimer = null;
+
+function showMessage(text) {
+  const m = $("showMsg");
+  m.textContent = text;
+  m.hidden = !text;
+  clearTimeout(showMsgTimer);
+  if (text) showMsgTimer = setTimeout(function () { showMessage(""); }, 6000);
+}
+
+function toolsInInput() {
+  return $("showTools").value.split(",").map(function (t) { return t.trim(); }).filter(Boolean);
+}
+
+// Tap-to-add chips for tools: ones already used in the Showcase first, then common ones
+function renderToolChips() {
+  const bar = $("showToolBar");
+  const names = [];
+  showcase.forEach(function (s) {
+    s.tools.forEach(function (t) {
+      if (!names.some(function (n) { return n.toLowerCase() === t.toLowerCase(); })) names.push(t);
+    });
+  });
+  names.sort(function (a, b) { return a.localeCompare(b); });
+  COMMON_TOOLS.forEach(function (t) {
+    if (!names.some(function (n) { return n.toLowerCase() === t.toLowerCase(); })) names.push(t);
+  });
+  const current = toolsInInput().map(function (t) { return t.toLowerCase(); });
+  bar.innerHTML = "";
+  names.forEach(function (name) {
+    const on = current.indexOf(name.toLowerCase()) >= 0;
+    const b = el("button", "level-chip course-chip" + (on ? " on" : ""), name);
+    b.type = "button";
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+    b.onclick = function () {
+      const list = toolsInInput();
+      const i = list.findIndex(function (t) { return t.toLowerCase() === name.toLowerCase(); });
+      if (i >= 0) list.splice(i, 1); else list.push(name);
+      $("showTools").value = list.join(", ");
+      renderToolChips();
+    };
+    bar.appendChild(b);
+  });
+}
+$("showTools").addEventListener("input", renderToolChips);
+
+function resetShowForm() {
+  $("showForm").reset();
+  $("showYear").value = new Date().getFullYear();
+  $("showCourse").dispatchEvent(new Event("input")); // repaints the course chips
+  clearThumbPreview();
+  $("showMore").open = false;
+  renderToolChips();
+}
+
+function clearThumbPreview() {
+  const img = $("showThumbPreview");
+  if (img.src.indexOf("blob:") === 0) URL.revokeObjectURL(img.src);
+  img.removeAttribute("src");
+  img.hidden = true;
+}
+
+$("showThumb").onchange = function () {
+  clearThumbPreview();
+  const file = $("showThumb").files[0];
+  if (!file) return;
+  const img = $("showThumbPreview");
+  img.src = URL.createObjectURL(file);
+  img.hidden = false;
+};
+
+// Opening the form puts the cursor in Title, so you can type straight away
+$("showAdd").addEventListener("toggle", function () {
+  if ($("showAdd").open) { showMessage(""); $("showTitle").focus(); }
+});
+$("showCancel").onclick = function () {
+  resetShowForm();
+  $("showAdd").open = false;
+};
+$("showUrl").addEventListener("input", function () { $("showUrl").setCustomValidity(""); });
+$("showClear").onclick = function () {
+  showTool = "";
+  showLevel = 0;
+  courseFilter = "";
+  renderAll();
+};
+
 $("showForm").onsubmit = function (event) {
   event.preventDefault();
+  const urlText = $("showUrl").value.trim();
+  if (urlText && !safeUrl(urlText)) {
+    $("showUrl").setCustomValidity("That doesn't look like a link. Paste the full address.");
+    $("showUrl").reportValidity();
+    return;
+  }
   const file = $("showThumb").files[0];
   const finish = function (thumb) {
     const entry = cleanShow({
       title: $("showTitle").value, course: $("showCourse").value, year: $("showYear").value, level: $("showLevel").value,
-      url: $("showUrl").value, tools: $("showTools").value, role: $("showRole").value,
+      url: urlText, tools: $("showTools").value, role: $("showRole").value,
       note: $("showNote").value, thumb: thumb
     });
     if (!entry) return;
@@ -1440,11 +1600,23 @@ $("showForm").onsubmit = function (event) {
       alert("Browser storage is full. Export a backup and remove something first.");
       return;
     }
-    $("showForm").reset();
+    resetShowForm();
+    $("showAdd").open = false;
+    // Clear any filter that would hide the new piece, then bring it into view
+    showTool = "";
+    showLevel = 0;
+    courseFilter = "";
     renderAll();
+    showMessage("Added “" + entry.title + "” to your Showcase.");
+    const li = $("showList").querySelector('[data-id="' + entry.id + '"]');
+    if (li) {
+      li.classList.add("just-added");
+      li.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    }
   };
   if (file) makeThumb(file, finish); else finish("");
 };
+$("showYear").value = new Date().getFullYear();
 
 $("showFilter").onchange = function () {
   showTool = $("showFilter").value;

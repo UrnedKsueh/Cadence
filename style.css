@@ -733,7 +733,7 @@ section { border-radius: var(--r-lg); border-color: var(--line); box-shadow: 0 1
 #panel-profile .row[hidden] { display: none; }
 #panel-profile #backupTitle + .hint { margin-top: 0; }
 #panel-profile .hint:last-child:empty { display: none; }
-.show-card .row { flex-wrap: nowrap; gap: 8px; }
+.show-card .row { flex-wrap: wrap; gap: 8px; }
 .show-card .row > button:not(.remove), .show-card .row > .btn { padding: 8px 14px; white-space: nowrap; flex: none; }
 .show-card .row .remove { flex: none; }
 .calc-results .result#timecode { grid-column: 1 / -1; padding: 16px 18px; }
@@ -922,3 +922,94 @@ html.share-view #shareView { display: block; max-width: 720px; margin: 0 auto; p
 .comment { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; padding: 6px 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
 .comment .remove { margin-left: auto; }
 .post-bar button { white-space: nowrap; }
+
+
+/* ===== Showcase panel: easier adding, calmer filters ===== */
+/* Primary "Add a piece" button */
+.add-piece { margin: 4px 0 14px; }
+.add-piece > summary {
+  min-height: 50px; justify-content: center; gap: 10px;
+  background-color: var(--accent); color: var(--bg); border-color: transparent;
+  font-weight: 650; font-size: 1rem; border-radius: var(--r-md);
+}
+.add-piece > summary::before { content: "+"; font-size: 1.4rem; line-height: 1; font-weight: 500; }
+.add-piece > summary::after { border-color: var(--bg); }
+.add-piece > summary:hover { border-color: transparent; filter: brightness(1.08); }
+.add-piece[open] > summary { margin-bottom: 14px; }
+.add-piece > form {
+  padding: 16px; border: 1px solid var(--line); border-radius: var(--r-md); background-color: var(--bg);
+}
+.add-piece label { margin-top: 2px; }
+.add-piece .field { background-color: var(--panel); }
+.add-piece textarea.field { resize: vertical; min-height: 84px; font-family: inherit; line-height: 1.45; }
+.add-piece .course-bar { margin-top: 0; }
+.add-piece .tool-bar { margin-top: -2px; }
+.add-piece .level-chip { min-height: 38px; padding: 4px 12px; font-size: 0.85rem; }
+.add-piece .subdet { margin: 4px 0 16px; }
+.add-piece .subdet > summary { min-height: 44px; color: var(--muted); font-weight: 600; font-size: 0.92rem; }
+.add-piece .subdet > summary::before { content: none; }
+.add-piece .subdet[open] > summary { color: var(--text); }
+.add-piece .field-grid { margin-top: 4px; }
+
+/* File picker looks like a button, with a small preview */
+.thumb-input { padding: 8px; color: var(--muted); font-size: 0.9rem; cursor: pointer; }
+.thumb-input::file-selector-button {
+  margin-right: 12px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px;
+  background-color: transparent; color: var(--text); font: inherit; font-weight: 600; cursor: pointer;
+}
+.thumb-input::file-selector-button:hover { border-color: var(--muted); }
+.thumb-preview { display: block; width: 100%; max-width: 240px; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--r-sm); margin: -2px 0 12px; border: 1px solid var(--line); }
+.thumb-preview[hidden] { display: none; }
+
+/* Submit stays easy to reach: big, full width on phones */
+.form-actions { display: flex; gap: 10px; }
+.form-actions button { min-height: 48px; border-radius: 999px; padding: 10px 22px; }
+.form-actions button[type="submit"] { flex: 1 1 auto; }
+
+/* Confirmation after adding */
+.show-msg { margin: 0 0 12px; padding: 10px 14px; border-radius: var(--r-md); background-color: var(--tint-b, var(--bg)); color: var(--text); border: 1px solid var(--line); }
+.show-msg[hidden] { display: none; }
+.show-item.just-added .show-card { animation: just-added 2.2s ease-out 1; }
+@keyframes just-added {
+  0%, 55% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 55%, transparent); border-color: var(--accent); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+@media (prefers-reduced-motion: reduce) { .show-item.just-added .show-card { animation: none; border-color: var(--accent); } }
+
+/* Filters: year chips, then tool picker and Present mode on one line */
+#showFilters[hidden] { display: none; }
+#showFilters .levelbar { margin: 4px 0 10px; }
+.show-filter-row { display: flex; gap: 10px; align-items: stretch; margin-bottom: 14px; }
+.show-filter-row .field { flex: 1 1 0; margin: 0; min-width: 0; }
+.show-filter-row .field[hidden] { display: none; }
+.show-filter-row button { flex: none; white-space: nowrap; border-radius: var(--r-md); }
+#showList { margin: 0; padding: 0; display: grid; gap: 12px; }
+#showList .show-group { margin: 10px 0 -4px; }
+#showList .show-group:first-child { margin-top: 0; }
+
+/* Empty state */
+.show-empty { text-align: center; padding: 26px 16px; margin: 6px 0 0; border: 1px dashed var(--line); border-radius: var(--r-md); }
+.show-empty[hidden] { display: none; }
+.show-empty p { margin: 0 0 4px; }
+.show-empty button { margin-top: 10px; border-radius: 999px; }
+.show-empty button[hidden] { display: none; }
+
+/* Wide screens (tablets, laptops): two-up pairs and roomier form */
+@media (min-width: 640px) {
+  .add-piece .field-grid { gap: 0 14px; }
+}
+
+/* ===== Projects panel: shorter cards, one toggle for checklist and shots ===== */
+.proj-toggle { width: 100%; justify-content: space-between; text-align: left; margin-top: 12px; min-height: 46px; border-radius: 999px; font-size: 0.92rem; display: flex; align-items: center; }
+.proj-toggle::after { content: ""; flex: none; width: 8px; height: 8px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); margin-top: -3px; transition: transform .2s; }
+.proj-toggle[aria-expanded="true"]::after { transform: rotate(-135deg); margin-top: 3px; }
+.project-body { margin-top: 6px; }
+.project-body[hidden] { display: none; }
+.project.just-added { animation: just-added 2.2s ease-out 1; }
+@media (prefers-reduced-motion: reduce) { .project.just-added { animation: none; border-color: var(--accent); } }
+#projectList { margin: 0; padding: 0; }
+.project { list-style: none; }
+/* Keep "Add item" / "Add shot" / "Add note" on one line */
+.shot-add button { flex: none; white-space: nowrap; }
+.shot-add .field { flex: 1 1 0; min-width: 0; }
+.form-actions { margin-top: 8px; }

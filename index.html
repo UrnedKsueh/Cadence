@@ -110,17 +110,26 @@
   <section aria-labelledby="projectsTitle">
     <h2 id="projectsTitle">Projects</h2>
     <p class="hint">Track each project through the pipeline and break it into shots.</p>
-    <form id="projectForm" autocomplete="off">
-      <label for="projectName">Project name</label>
-      <input id="projectName" class="field" placeholder="e.g. Short film" required>
-      <label for="projectCourse">Course (optional)</label>
-      <input id="projectCourse" class="field" list="courses" placeholder="e.g. EMC 204">
-      <label for="projectDue">Due date (optional)</label>
-      <input id="projectDue" class="field" type="date">
-      <button type="submit">Add project</button>
-    </form>
+    <details class="shots add-piece" id="projectAdd">
+      <summary>New project</summary>
+      <form id="projectForm" autocomplete="off">
+        <label for="projectName">Project name</label>
+        <input id="projectName" class="field" placeholder="e.g. Short film" required maxlength="80" enterkeyhint="done">
+        <label for="projectCourse">Course (optional)</label>
+        <input id="projectCourse" class="field" list="courses" placeholder="e.g. EMC 204">
+        <label for="projectDue">Due date (optional)</label>
+        <input id="projectDue" class="field" type="date">
+        <div class="form-actions">
+          <button type="submit">Add project</button>
+          <button type="button" class="secondary" id="projectCancel">Cancel</button>
+        </div>
+      </form>
+    </details>
+    <p class="hint show-msg" id="projectMsg" role="status" aria-live="polite" hidden></p>
     <ul id="projectList"></ul>
-    <p class="empty" id="projectEmpty" hidden>No projects yet. Add one above.</p>
+    <div class="empty show-empty" id="projectEmpty" hidden>
+      <p>No projects yet. Tap New project above to start one.</p>
+    </div>
   </section>
   </div>
 
@@ -288,44 +297,71 @@
   <section aria-labelledby="showcaseTitle">
     <h2 id="showcaseTitle">Showcase</h2>
     <p class="hint">Your finished work. Videos stay on YouTube, Vimeo or Drive; this saves the link and a small thumbnail.</p>
-    <div class="row">
-      <button type="button" id="presentBtn" class="secondary">Present mode</button>
-    </div>
-    <div class="levelbar" id="levelBar" role="group" aria-label="Filter by year level"></div>
-    <label for="showFilter">Show tool</label>
-    <select id="showFilter" class="field"></select>
-    <details class="shots" id="showAdd">
+    <details class="shots add-piece" id="showAdd">
       <summary>Add a piece</summary>
       <form id="showForm" autocomplete="off">
         <label for="showTitle">Title</label>
-        <input id="showTitle" class="field" required maxlength="120" placeholder="e.g. Walk cycle reel">
+        <input id="showTitle" class="field" required maxlength="120" placeholder="e.g. Walk cycle reel" enterkeyhint="next">
         <label for="showUrl">Video link (YouTube, Vimeo, Drive)</label>
-        <input id="showUrl" class="field" type="url" placeholder="https://">
+        <input id="showUrl" class="field" type="text" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="Paste a link" enterkeyhint="done">
         <label for="showCourse">Course (optional)</label>
         <input id="showCourse" class="field" list="courses">
-        <label for="showLevel">Year level</label>
-        <select id="showLevel" class="field">
-          <option value="">Auto (from course code)</option>
-          <option value="1">1st year</option>
-          <option value="2">2nd year</option>
-          <option value="3">3rd year</option>
-          <option value="4">4th year</option>
-        </select>
-        <label for="showYear">Year made</label>
-        <input id="showYear" class="field" type="number" inputmode="numeric" min="1990" max="2100" placeholder="2026">
-        <label for="showTools">Tools (comma separated)</label>
-        <input id="showTools" class="field" placeholder="Blender, After Effects">
-        <label for="showRole">Your role</label>
-        <input id="showRole" class="field" placeholder="Animator, layout, compositing">
-        <label for="showNote">What you learned / instructor feedback</label>
-        <input id="showNote" class="field" maxlength="400">
-        <label for="showThumb">Thumbnail image (optional)</label>
-        <input id="showThumb" class="field" type="file" accept="image/*">
-        <button type="submit">Add to Showcase</button>
+        <details class="subdet" id="showMore">
+          <summary>More details (optional)</summary>
+          <div class="field-grid">
+            <div class="fld">
+              <label for="showLevel">Year level</label>
+              <select id="showLevel" class="field">
+                <option value="">Auto (from course)</option>
+                <option value="1">1st year</option>
+                <option value="2">2nd year</option>
+                <option value="3">3rd year</option>
+                <option value="4">4th year</option>
+              </select>
+            </div>
+            <div class="fld">
+              <label for="showYear">Year made</label>
+              <input id="showYear" class="field" type="number" inputmode="numeric" min="1990" max="2100">
+            </div>
+            <div class="fld fld-wide">
+              <label for="showTools">Tools (tap or type, comma separated)</label>
+              <input id="showTools" class="field" placeholder="Blender, After Effects">
+              <div class="levelbar tool-bar" id="showToolBar" role="group" aria-label="Pick tools"></div>
+            </div>
+            <div class="fld fld-wide">
+              <label for="showRole">Your role</label>
+              <input id="showRole" class="field" placeholder="Animator, layout, compositing">
+            </div>
+            <div class="fld fld-wide">
+              <label for="showNote">What you learned / instructor feedback</label>
+              <textarea id="showNote" class="field" rows="3" maxlength="400"></textarea>
+            </div>
+            <div class="fld fld-wide">
+              <label for="showThumb">Thumbnail image</label>
+              <input id="showThumb" class="field thumb-input" type="file" accept="image/*">
+              <img id="showThumbPreview" class="thumb-preview" alt="Thumbnail preview" hidden>
+            </div>
+          </div>
+        </details>
+        <div class="form-actions">
+          <button type="submit">Add to Showcase</button>
+          <button type="button" class="secondary" id="showCancel">Cancel</button>
+        </div>
       </form>
     </details>
+    <p class="hint show-msg" id="showMsg" role="status" aria-live="polite" hidden></p>
+    <div id="showFilters" hidden>
+      <div class="levelbar" id="levelBar" role="group" aria-label="Filter by year level"></div>
+      <div class="show-filter-row">
+        <select id="showFilter" class="field" aria-label="Filter by tool"></select>
+        <button type="button" id="presentBtn" class="secondary">Present mode</button>
+      </div>
+    </div>
     <ul id="showList"></ul>
-    <p class="empty" id="showEmpty" hidden>Nothing here yet. Add a finished piece, or send a Delivered project here.</p>
+    <div class="empty show-empty" id="showEmpty" hidden>
+      <p id="showEmptyText">Nothing here yet.</p>
+      <button type="button" class="secondary" id="showClear" hidden>Clear filters</button>
+    </div>
   </section>
   <section id="shareSection" aria-labelledby="shareTitle" hidden>
     <h2 id="shareTitle">Share your showcase</h2>
