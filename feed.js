@@ -33,7 +33,7 @@ if (!S.id) {
     if (m < 1440) return Math.round(m / 60) + " h ago";
     return Math.round(m / 1440) + " d ago";
   }
-  function say(text) { $("feedMsg").textContent = text; }
+  function say(text) { document.querySelectorAll(".feed-msg").forEach(function (n) { n.textContent = text; }); }
   function refreshApp() { if (typeof renderAll === "function") renderAll(); }
 
   window.CadenceFeed = {
@@ -50,7 +50,7 @@ if (!S.id) {
         });
         const map = posted(); map[piece.id] = ref.id; savePosted(map);
         refreshApp();
-        alert("Posted. Find it in the Community tab.");
+        alert("Posted. Find it in the Community section on your Home tab.");
       } catch (e) { alert("Couldn't post. Check your connection and that the new rules are published."); }
     },
     unpost: async function (showId) {
@@ -187,7 +187,7 @@ if (!S.id) {
   }
 
   async function loadFeed() {
-    const out = $("feedList");
+    const out = document.querySelector(".home-feed-list");
     if (!user) { out.textContent = ""; say("Sign in with Google to see the Community feed."); return; }
     if (loading) return;
     loading = true;
@@ -199,7 +199,7 @@ if (!S.id) {
       }));
       out.textContent = "";
       snap.docs.forEach(function (d, i) { out.appendChild(renderPost(d.id, d.data(), likes[i])); });
-      say(snap.empty ? "No posts yet. Be the first: open the Showcase tab and tap Post to feed on a piece." : "");
+      say(snap.empty ? "No posts yet. Be the first to post above." : "");
     } catch (e) {
       out.textContent = "";
       say("Couldn't load the feed. Check your connection, and that the Community rules are published in Firebase.");
@@ -207,8 +207,54 @@ if (!S.id) {
     loading = false;
   }
 
+  // Post box. Uses the same fields as Showcase posts, so the published rules accept it unchanged.
+  const form = document.querySelector(".composer");
+  const q = function (c) { return form.querySelector(c); };
+  q(".c-body").addEventListener("input", function () { q(".c-count").textContent = q(".c-body").value.length + " / 400"; });
+  form.onsubmit = async function (e) {
+    e.preventDefault();
+    if (!user) return;
+    const msg = q(".c-msg");
+    const title = q(".c-title").value.trim().slice(0, 80);
+    if (!title) { msg.textContent = "Add a title first."; return; }
+    let url = "";
+    const raw = q(".c-link").value.trim();
+    if (raw) {
+      try {
+        const u = new URL(/^https?:\/\//i.test(raw) ? raw : "https://" + raw);
+        if (u.protocol === "https:" || u.protocol === "http:") url = u.href;
+      } catch (err) {}
+      if (!url) { msg.textContent = "That link doesn't look right."; return; }
+    }
+    const btn = q(".c-submit");
+    btn.disabled = true;
+    msg.textContent = "Posting…";
+    try {
+      await addDoc(collection(db, "posts"), {
+        owner: user.uid, authorName: myName(), title: title, course: "", year: "",
+        role: "", tools: [], note: q(".c-body").value.trim().slice(0, 400), url: url, createdAt: serverTimestamp()
+      });
+      form.reset();
+      q(".c-count").textContent = "0 / 400";
+      msg.textContent = "Posted.";
+      loading = false;
+      await loadFeed();
+    } catch (err) {
+      msg.textContent = "Couldn't post. Check your connection and that the Community rules are published.";
+    }
+    btn.disabled = false;
+  };
+
+  function hello() {
+    let n = "";
+    try { n = (localStorage.getItem("cadence:displayName") || "").trim(); } catch (e) {}
+    if (!n && user && user.displayName) n = user.displayName.trim().split(/\s+/)[0];
+    $("helloTitle").textContent = "Hello" + (n ? " " + n.slice(0, 40) : "");
+  }
+
   $("feedRefresh").onclick = loadFeed;
-  $("tab-community").addEventListener("click", loadFeed);
+  $("tab-home").addEventListener("click", loadFeed);
+  document.addEventListener("visibilitychange", function () { if (!document.hidden && user) loadFeed(); });
 
   onAuthStateChanged(getAuth(), async function (u) {
     user = u || null;
@@ -216,7 +262,9 @@ if (!S.id) {
     if (user) {
       try { admin = (await getDoc(doc(db, "admins", user.uid))).exists(); } catch (e) {}
     }
+    form.hidden = !user;
+    hello();
     refreshApp();
-    if (!$("panel-community").hidden) loadFeed();
+    loadFeed();
   });
 }

@@ -13,8 +13,11 @@
     if (meta) meta.setAttribute("content", effective() === "light" ? "#f5f7fa" : "#0e1319");
     const btn = document.getElementById("themeBtn");
     if (btn) {
-      btn.setAttribute("aria-label", effective() === "light" ? "Switch to dark theme" : "Switch to light theme");
+      btn.setAttribute("aria-label", effective() === "light" ? "Light mode is on. Switch to dark theme" : "Dark mode is on. Switch to light theme");
       btn.setAttribute("aria-pressed", effective() === "light" ? "true" : "false");
+      const pill = document.getElementById("themePill"), state = document.getElementById("themeState");
+      if (pill) pill.textContent = effective() === "light" ? "Light" : "Dark";
+      if (state) state.textContent = effective() === "light" ? "Tap to switch to dark" : "Tap to switch to light";
     }
   }
   paint(); // runs in <head> so the right theme shows before the page draws

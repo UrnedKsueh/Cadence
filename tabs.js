@@ -1,11 +1,16 @@
 (function () {
   "use strict";
   const tabs = Array.from(document.querySelectorAll(".tab"));
-  // Profile has no nav button: it opens from the avatar in the header.
-  const names = tabs.map(function (t) { return t.dataset.tab; }).concat("profile");
+  // Tools and Profile have no nav button: they open from the icons in the header.
+  const names = tabs.map(function (t) { return t.dataset.tab; }).concat("tools", "profile");
+  const toolsBtn = document.getElementById("toolsBtn");
   const KEY = "cadence:lastTab";
 
   function show(name, focusTab) {
+    // Showcase now lives inside Profile; old links and saved tabs land there
+    if (name === "community") name = "resources";
+    let jumpTo = "";
+    if (name === "showcase") { name = "profile"; jumpTo = "showcaseSection"; }
     if (names.indexOf(name) < 0) name = names[0];
     names.forEach(function (n) {
       document.getElementById("panel-" + n).hidden = n !== name;
@@ -16,11 +21,14 @@
       t.tabIndex = on ? 0 : -1;
       if (on && focusTab) t.focus();
     });
-    // When Profile is open no tab is selected; keep the first one reachable by keyboard.
-    if (name === "profile" && tabs.length) tabs[0].tabIndex = 0;
+    // When Tools or Profile is open no tab is selected; keep the first one reachable by keyboard.
+    if ((name === "profile" || name === "tools") && tabs.length) tabs[0].tabIndex = 0;
+    toolsBtn.classList.toggle("on", name === "tools");
+    toolsBtn.setAttribute("aria-pressed", name === "tools" ? "true" : "false");
     try { localStorage.setItem(KEY, name); } catch (e) {}
     if (location.hash !== "#" + name) history.replaceState(null, "", "#" + name);
-    window.scrollTo(0, 0);
+    const target = jumpTo && document.getElementById(jumpTo);
+    if (target) target.scrollIntoView({ block: "start" }); else window.scrollTo(0, 0);
   }
 
   window.showTab = function (name) { show(name, false); };
@@ -54,16 +62,15 @@
   document.querySelectorAll("[data-tool-back]").forEach(function (b) {
     b.addEventListener("click", function () { openTool(null); });
   });
-  tabs.forEach(function (t) {
-    if (t.dataset.tab === "tools") t.addEventListener("click", function () { openTool(null); });
-  });
+  toolsBtn.addEventListener("click", function () { show("tools", false); openTool(null); });
+
 
   document.getElementById("avatarBtn").addEventListener("click", function () { show("profile", false); });
   window.addEventListener("hashchange", function () { show(location.hash.slice(1), false); });
 
   let start = location.hash.slice(1);
   if (start === "calc") start = "tools";
-  if (names.indexOf(start) < 0) {
+  if (names.indexOf(start) < 0 && start !== "showcase") { // "showcase" is an alias for Profile
     try { start = localStorage.getItem(KEY) || ""; } catch (e) { start = ""; }
   }
   show(start, false);
