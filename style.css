@@ -1404,3 +1404,46 @@ strong.tap:hover { text-decoration: underline; }
 .notif-main .notif-dot { margin: 0; flex: none; background-color: var(--accent); }
 .notif-item.late .notif-main .notif-dot { background-color: var(--warn); }
 .notif-head { padding: 12px 16px; }
+
+/* Notifications: expandable detail, mark as read and delete */
+.notif-item { flex-direction: column; align-items: stretch; gap: 0; }
+.notif-item.open { background-color: color-mix(in srgb, var(--accent) 6%, var(--panel)); }
+.notif-item.open .notif-main { background-color: transparent; }
+.notif-item.open .notif-body small { white-space: normal; }
+.notif-more { padding: 0 12px 12px 60px; display: flex; flex-direction: column; gap: 4px; }
+.notif-text { margin: 0; font-size: 0.9rem; line-height: 1.45; white-space: pre-wrap; overflow-wrap: anywhere; }
+.notif-line { margin: 0; font-size: 0.85rem; line-height: 1.4; color: var(--text); overflow-wrap: anywhere; }
+.notif-meta { color: var(--muted); font-size: 0.76rem; }
+.notif-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.notif-act { min-height: 0; padding: 6px 12px; border-radius: 999px; font-size: 0.8rem; font-weight: 600; background: transparent; color: var(--text); border: 1px solid var(--line); }
+.notif-act:hover { filter: none; border-color: var(--muted); }
+.notif-act.primary { background-color: var(--accent); border-color: var(--accent); color: #ffffff; }
+.notif-act.danger { color: var(--warn); }
+
+/* Post "..." menu */
+.post-head { position: relative; }
+.post-menu-btn { margin-left: auto; flex: none; width: 40px; min-height: 40px; height: 40px; padding: 0; display: grid; place-items: center; border-radius: 50%; background: transparent; color: var(--muted); border: 0; }
+.post-menu-btn svg { width: 20px; height: 20px; }
+.post-menu-btn:hover { filter: none; background-color: color-mix(in srgb, var(--text) 8%, transparent); }
+.post-menu { position: absolute; top: 44px; right: 0; z-index: 12; min-width: 160px; padding: 6px; background-color: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22); }
+.post-menu[hidden] { display: none; }
+.post-menu-item { width: 100%; min-height: 44px; padding: 10px 12px; text-align: left; background: transparent; color: var(--text); border: 0; border-radius: 10px; font: inherit; font-weight: 600; }
+.post-menu-item:hover { filter: none; background-color: color-mix(in srgb, var(--text) 8%, transparent); }
+.post-menu-item.danger { color: var(--warn); }
+
+/* Comments: heart, reply, delete */
+.comment .c-acts { display: flex; align-items: center; gap: 4px; margin-top: 4px; }
+.c-act { min-height: 32px; padding: 4px 10px; background: transparent; color: var(--muted); border: 0; border-radius: 999px; font: inherit; font-size: 0.82rem; font-weight: 600; }
+.c-act:hover { filter: none; background-color: color-mix(in srgb, var(--text) 8%, transparent); color: var(--text); }
+.c-act.on { color: var(--warn); }
+.c-act.danger { color: var(--warn); margin-left: auto; }
+.comment.is-reply { margin-left: 28px; padding-left: 0; border-top: 0; padding-top: 4px; }
+.comment.is-reply .c-pic { width: 28px; height: 28px; font-size: 0.8rem; }
+.c-replyto { color: var(--accent); font-weight: 600; }
+.c-replying { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 8px 0 4px; padding: 6px 6px 6px 12px; border-radius: 999px; background-color: color-mix(in srgb, var(--accent) 10%, var(--panel)); font-size: 0.85rem; }
+.c-replying[hidden] { display: none; }
+
+/* Project card: one Team chat button; stages open from inside the chat */
+.sp-card-actions { grid-template-columns: 1fr; }
+.sp-hide { align-self: flex-start; min-height: 36px; padding: 6px 14px; font-size: 0.85rem; margin-bottom: 4px; }
+.chat-stages { flex: none; min-height: 40px; padding: 6px 14px; margin-left: auto; font-size: 0.85rem; white-space: nowrap; border-radius: 999px; }

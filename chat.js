@@ -79,7 +79,17 @@ function build() {
   const pick = mk("select", "field chat-pick");
   pick.setAttribute("aria-label", "Channel");
   titles.appendChild(title); titles.appendChild(pick);
-  head.appendChild(back); head.appendChild(titles);
+  const stagesBtn = mk("button", "secondary chat-stages", "Stages");
+  stagesBtn.type = "button";
+  stagesBtn.setAttribute("aria-label", "See the stages of this project");
+  stagesBtn.onclick = function () {
+    if (!cur) return;
+    const pid = cur.p.id;
+    const stageId = cur.tid && cur.tid !== "general" && cur.tid !== "announcements" ? cur.tid : "";
+    close();
+    if (sp() && sp().show) sp().show(pid, stageId);
+  };
+  head.appendChild(back); head.appendChild(titles); head.appendChild(stagesBtn);
 
   const list = mk("div", "chat-list");
   list.setAttribute("role", "log");
@@ -476,6 +486,7 @@ function openChat(p, tid) {
   build();
   cur = { p: p, tid: "", msgs: new Map(), pins: new Map(), picker: "", unsub: null, oldest: null, hasMore: false };
   ui.title.textContent = p.name;
+  ui.root.querySelector(".chat-stages").textContent = "Stages (" + p.stages.length + ")";
   ui.root.hidden = false;
   document.body.classList.add("chat-open");
   const start = tid && threadsOf(p).some(function (t) { return t.id === tid; }) ? tid : "general";

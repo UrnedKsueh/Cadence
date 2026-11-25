@@ -824,6 +824,18 @@ let notifRead = (function () {
   } catch (error) { return []; }
 })();
 
+const GONE_KEY = "cadence:notifGone";
+let notifGone = (function () {
+  try {
+    const raw = JSON.parse(localStorage.getItem(GONE_KEY));
+    return Array.isArray(raw) ? raw : [];
+  } catch (error) { return []; }
+})();
+function saveNotifGone() {
+  try { localStorage.setItem(GONE_KEY, JSON.stringify(notifGone.slice(-300))); } catch (error) { /* unavailable */ }
+}
+let notifOpenKey = "";
+
 function saveNotifRead() {
   try { localStorage.setItem(NOTIF_KEY, JSON.stringify(notifRead)); } catch (error) { /* unavailable */ }
 }
@@ -836,14 +848,16 @@ function buildNotifications() {
     const left = daysLeft(d.date);
     if (left > 7) return;
     items.push({ key: "dl:" + d.id + ":" + d.date + ":" + bucket(left), kind: "deadline", id: d.id,
-      title: d.name, left: left, course: d.course, late: left < 0 });
+      title: d.name, left: left, course: d.course, late: left < 0,
+      lines: ["Deadline: " + d.name, "Due: " + d.date + " (" + describe(left) + ")"].concat(d.course ? ["Course: " + d.course] : []) });
   });
   projects.forEach(function (p) {
     if (!p.due || p.progress >= 100) return;
     const left = daysLeft(p.due);
     if (left > 7) return;
     items.push({ key: "pj:" + p.id + ":" + p.due + ":" + bucket(left), kind: "project", id: p.id,
-      title: p.name, left: left, course: p.course, late: left < 0 });
+      title: p.name, left: left, course: p.course, late: left < 0,
+      lines: ["Project: " + p.name, "Due: " + p.due + " (" + describe(left) + ")"].concat(p.course ? ["Course: " + p.course] : []) });
   });
   // Shared projects: stages assigned to me, and announcements from the admin
   const sp = window.CadenceSharedProjects;
@@ -856,12 +870,15 @@ function buildNotifications() {
         const fix = s.status === "Needs changes";
         items.push({ key: (fix ? "sn:" : ready ? "sr:" : "sa:") + p.id + ":" + s.id, kind: "task", id: p.id,
           title: s.name + " \u00b7 " + p.name, left: fix ? -3000 : ready ? -2000 : -1000,
-          note: fix ? "Changes requested" : ready ? "Ready for you" : "Assigned to you", late: false });
+          note: fix ? "Changes requested" : ready ? "Ready for you" : "Assigned to you", late: false,
+          lines: [fix ? "Your teacher or lead asked for changes on this stage." : ready ? "The stage before yours is done, so it is your turn." : "This stage was assigned to you.",
+            "Stage: " + s.name, "Project: " + p.name].concat(s.due || p.due ? ["Due: " + (s.due || p.due)] : []).concat(s.note ? ["Note: " + s.note] : []) });
         const due = s.due || p.due;
         if (due) {
           const left = daysLeft(due);
           if (left <= 7) items.push({ key: "sd:" + p.id + ":" + s.id + ":" + due + ":" + bucket(left), kind: "task", id: p.id,
-            title: s.name + " \u00b7 " + p.name, left: left, note: describe(left), late: left < 0 });
+            title: s.name + " \u00b7 " + p.name, left: left, note: describe(left), late: left < 0,
+            lines: ["Stage: " + s.name, "Project: " + p.name, "Due: " + due + " (" + describe(left) + ")"].concat(s.note ? ["Note: " + s.note] : []) });
         }
       });
     });
@@ -870,10 +887,12 @@ function buildNotifications() {
   if (an) {
     an.list().slice(0, 5).forEach(function (a) {
       items.push({ key: "an:" + a.id, kind: "announcement", id: a.id, title: a.title,
-        left: -500, note: "Announcement", late: false });
+        left: -500, note: "Announcement", late: false, body: a.body || "",
+        when: a.createdAt && a.createdAt.toDate ? a.createdAt.toDate().toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "" });
     });
   }
-  return items.sort(function (a, b) { return a.left - b.left; });
+  return items.filter(function (n) { return notifGone.indexOf(n.key) < 0; })
+    .sort(function (a, b) { return a.left - b.left; });
 }
 
 function setNotifOpen(open) {
@@ -890,6 +909,13 @@ const NOTIF_ICONS = {
   announcement: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4h3l7 4V6l-7 4zM18 9a4 4 0 0 1 0 6"/></svg>'
 };
 
+function allKeys() {
+  const keep = notifGone; notifGone = [];
+  const keys = buildNotifications().map(function (n) { return n.key; });
+  notifGone = keep;
+  return keys;
+}
+
 function renderNotifications() {
   const items = buildNotifications();
   // Forget read marks for items that no longer apply (done, deleted, rescheduled)
@@ -897,6 +923,8 @@ function renderNotifications() {
   const pruned = notifRead.filter(function (k) { return live.indexOf(k) >= 0; });
   if (pruned.length !== notifRead.length) { notifRead = pruned; saveNotifRead(); }
 
+  const prunedGone = notifGone.filter(function (k) { return allKeys().indexOf(k) >= 0; });
+  if (prunedGone.length !== notifGone.length) { notifGone = prunedGone; saveNotifGone(); }
   const unread = items.filter(function (n) { return notifRead.indexOf(n.key) < 0; });
   const badge = $("bellCount");
   badge.textContent = unread.length > 9 ? "9+" : String(unread.length);
@@ -911,10 +939,12 @@ function renderNotifications() {
 
   items.forEach(function (n) {
     const isUnread = notifRead.indexOf(n.key) < 0;
-    const li = el("li", "notif-item" + (isUnread ? " unread" : "") + (n.late ? " late" : ""));
+    const isOpen = notifOpenKey === n.key;
+    const li = el("li", "notif-item" + (isUnread ? " unread" : "") + (n.late ? " late" : "") + (isOpen ? " open" : ""));
 
     const main = el("button", "notif-main");
     main.type = "button";
+    main.setAttribute("aria-expanded", isOpen ? "true" : "false");
     const icon = el("span", "notif-icon notif-" + n.kind);
     icon.innerHTML = NOTIF_ICONS[n.kind] || NOTIF_ICONS.deadline;
     main.appendChild(icon);
@@ -928,7 +958,8 @@ function renderNotifications() {
       if (n.note) body.appendChild(el("span", "notif-chip" + (n.late ? " late" : ""), n.note));
     } else if (n.kind === "announcement") {
       body.appendChild(el("strong", "", title));
-      body.appendChild(el("small", "", "From your teacher"));
+      if (!isOpen && n.body) body.appendChild(el("small", "", n.body));
+      else if (!isOpen) body.appendChild(el("small", "", "Announcement" + (n.when ? " \u00b7 " + n.when : "")));
     } else {
       body.appendChild(el("strong", "", title));
       if (n.course) body.appendChild(el("small", "", n.course));
@@ -937,33 +968,61 @@ function renderNotifications() {
     main.appendChild(body);
     if (isUnread) main.appendChild(el("span", "notif-dot"));
     main.onclick = function () {
-      if (notifRead.indexOf(n.key) < 0) { notifRead.push(n.key); saveNotifRead(); }
-      setNotifOpen(false);
+      notifOpenKey = isOpen ? "" : n.key;
+      if (!isOpen && notifRead.indexOf(n.key) < 0) { notifRead.push(n.key); saveNotifRead(); }
       renderNotifications();
-      if (n.kind === "project") window.showTab("projects");
-      else if (n.kind === "task") {
-        window.showTab("projects");
-        if (window.CadenceSharedProjects) window.CadenceSharedProjects.show(n.id);
-      } else if (n.kind === "announcement") {
-        window.showTab("home");
-        const box = $("announceBox");
-        if (box && !box.hidden) box.scrollIntoView({ block: "start" });
-      } else { window.showTab("home"); if (!(window.openDeadlines && window.openDeadlines(false))) $("deadlineList").scrollIntoView({ block: "start" }); }
     };
     li.appendChild(main);
 
-    if (n.kind === "deadline") {
-      const done = el("button", "notif-done", "Done");
-      done.type = "button";
-      done.setAttribute("aria-label", "Mark \"" + n.title + "\" as done");
-      done.onclick = function () {
-        const d = deadlines.find(function (x) { return x.id === n.id; });
-        if (!d) return;
-        d.done = true;
-        store(KEYS.deadlines, deadlines);
-        renderAll();
-      };
-      li.appendChild(done);
+    if (isOpen) {
+      const more = el("div", "notif-more");
+      if (n.kind === "announcement") {
+        more.appendChild(el("p", "notif-text", n.body || "No extra message was added."));
+        more.appendChild(el("small", "notif-meta", "Announcement" + (n.when ? " \u00b7 " + n.when : "")));
+      } else {
+        (n.lines || []).forEach(function (t) { more.appendChild(el("p", "notif-line", t)); });
+      }
+      const row = el("div", "notif-actions");
+      function act(label, cls, fn) {
+        const b = el("button", "notif-act " + cls, label);
+        b.type = "button";
+        b.onclick = function (e) { e.stopPropagation(); fn(); };
+        row.appendChild(b);
+      }
+      act("Open", "primary", function () {
+        setNotifOpen(false);
+        if (n.kind === "project") window.showTab("projects");
+        else if (n.kind === "task") {
+          window.showTab("projects");
+          if (window.CadenceSharedProjects) window.CadenceSharedProjects.show(n.id);
+        } else if (n.kind === "announcement") {
+          window.showTab("home");
+          const box = $("announceBox");
+          if (box && !box.hidden) box.scrollIntoView({ block: "start" });
+        } else { window.showTab("home"); if (!(window.openDeadlines && window.openDeadlines(false))) $("deadlineList").scrollIntoView({ block: "start" }); }
+      });
+      act(isUnread ? "Mark as read" : "Mark as unread", "", function () {
+        const i = notifRead.indexOf(n.key);
+        if (i < 0) notifRead.push(n.key); else notifRead.splice(i, 1);
+        saveNotifRead();
+        renderNotifications();
+      });
+      if (n.kind === "deadline") {
+        act("Done", "", function () {
+          const d = deadlines.find(function (x) { return x.id === n.id; });
+          if (!d) return;
+          d.done = true;
+          store(KEYS.deadlines, deadlines);
+          renderAll();
+        });
+      }
+      act("Delete", "danger", function () {
+        notifGone.push(n.key); saveNotifGone();
+        notifOpenKey = "";
+        renderNotifications();
+      });
+      more.appendChild(row);
+      li.appendChild(more);
     }
     list.appendChild(li);
   });

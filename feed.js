@@ -1,7 +1,7 @@
 // Community feed: signed-in students post finished pieces, like and comment. Runs after cloud.js.
 import { getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, orderBy, limit, getDocs, addDoc, serverTimestamp }
+import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, orderBy, limit, getDocs, addDoc, updateDoc, arrayUnion, arrayRemove, serverTimestamp }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { avatarFor, avatarEl, getProfile, paintAva } from "./avatars.js";
 
@@ -83,17 +83,27 @@ if (!S.id) {
     }
   };
 
-  async function loadComments(postId, postOwner, list) {
+  async function loadComments(postId, postOwner, list, onReply) {
     if (!list.childNodes.length) list.appendChild(mk("p", "hint", "Loading comments…"));
     let snap;
-    try { snap = await getDocs(query(collection(db, "posts", postId, "comments"), orderBy("createdAt"), limit(30))); }
+    try { snap = await getDocs(query(collection(db, "posts", postId, "comments"), orderBy("createdAt"), limit(40))); }
     catch (e) { list.textContent = ""; list.appendChild(mk("p", "hint", "Couldn't load comments.")); return; }
     list.textContent = "";
-    if (snap.empty) list.appendChild(mk("p", "hint", "No comments yet."));
+    if (snap.empty) list.appendChild(mk("p", "hint", "No comments yet. Be the first."));
+    // Replies sit right under the comment they answer
+    const all = snap.docs.map(function (d) { return { id: d.id, c: d.data() }; });
+    const ids = {};
+    all.forEach(function (x) { ids[x.id] = true; });
+    const tops = all.filter(function (x) { return !x.c.replyId || !ids[x.c.replyId]; });
+    const ordered = [];
+    tops.forEach(function (t) {
+      ordered.push({ x: t, reply: false });
+      all.forEach(function (r) { if (r.c.replyId === t.id) ordered.push({ x: r, reply: true }); });
+    });
     const frag = document.createDocumentFragment();
-    snap.docs.forEach(function (d) {
-      const c = d.data();
-      const row = mk("div", "comment");
+    ordered.forEach(function (o) {
+      const d = o.x, c = o.x.c;
+      const row = mk("div", "comment" + (o.reply ? " is-reply" : ""));
       const cName = String(c.authorName || "A student").slice(0, 40);
       const ava = c.owner ? tappable(avatarFor(c.owner, cName, "c-pic"), c.owner, cName) : avatarEl(null, "c-pic", cName);
       const body = mk("div", "c-text-wrap");
@@ -101,23 +111,65 @@ if (!S.id) {
       meta.appendChild(c.owner ? tappable(mk("strong", "", cName), c.owner, cName) : mk("strong", "", cName));
       meta.appendChild(mk("small", "hint", ago(c.createdAt)));
       body.appendChild(meta);
-      body.appendChild(mk("p", "c-text", String(c.text || "").slice(0, 200)));
-      row.appendChild(ava);
-      row.appendChild(body);
+      const text = mk("p", "c-text");
+      if (o.reply && c.replyName) text.appendChild(mk("span", "c-replyto", "@" + String(c.replyName).slice(0, 40) + " "));
+      text.appendChild(document.createTextNode(String(c.text || "").slice(0, 200)));
+      body.appendChild(text);
+
+      // Actions: heart, reply, delete
+      const likes = Array.isArray(c.likes) ? c.likes.slice() : [];
+      let liked = !!user && likes.indexOf(user.uid) >= 0;
+      let count = likes.length;
+      const acts = mk("div", "c-acts");
+      const heart = mk("button", "c-act", "");
+      heart.type = "button";
+      function paintHeart() {
+        heart.textContent = (liked ? "♥ " : "♡ ") + (count || "");
+        heart.classList.toggle("on", liked);
+        heart.setAttribute("aria-pressed", liked ? "true" : "false");
+        heart.setAttribute("aria-label", (liked ? "Unlike" : "Like") + " comment, " + count + (count === 1 ? " like" : " likes"));
+      }
+      paintHeart();
+      heart.onclick = async function () {
+        if (!user) return;
+        const was = liked;
+        liked = !was; count += was ? -1 : 1; paintHeart();
+        try {
+          await updateDoc(doc(db, "posts", postId, "comments", d.id), { likes: was ? arrayRemove(user.uid) : arrayUnion(user.uid) });
+        } catch (e) { liked = was; count += was ? 1 : -1; paintHeart(); say("Couldn't save your like. Make sure the updated rules are published."); }
+      };
+      acts.appendChild(heart);
+      const reply = mk("button", "c-act", "Reply");
+      reply.type = "button";
+      reply.setAttribute("aria-label", "Reply to " + cName);
+      reply.onclick = function () { onReply({ id: o.reply ? c.replyId : d.id, name: cName }); };
+      acts.appendChild(reply);
       if (user && (c.owner === user.uid || postOwner === user.uid || admin)) {
-        const del = mk("button", "remove", "✕");
+        const del = mk("button", "c-act danger", "Delete");
         del.type = "button";
-        del.setAttribute("aria-label", "Delete comment");
+        del.setAttribute("aria-label", "Delete comment by " + cName);
         del.onclick = async function () {
-          try { await deleteDoc(doc(db, "posts", postId, "comments", d.id)); row.remove(); }
+          if (!confirm("Delete this comment?")) return;
+          try { await deleteDoc(doc(db, "posts", postId, "comments", d.id)); await loadComments(postId, postOwner, list, onReply); }
           catch (e) { say("Couldn't delete the comment."); }
         };
-        row.appendChild(del);
+        acts.appendChild(del);
       }
+      body.appendChild(acts);
+      row.appendChild(ava);
+      row.appendChild(body);
       frag.appendChild(row);
     });
     list.appendChild(frag);
   }
+
+  // One shared listener closes any open "..." menu
+  document.addEventListener("click", function () {
+    document.querySelectorAll(".post-menu:not([hidden])").forEach(function (m) {
+      m.hidden = true;
+      const b = m.previousElementSibling; if (b) b.setAttribute("aria-expanded", "false");
+    });
+  });
 
   function renderPost(id, data, likes) {
     const wrap = mk("article", "post");
@@ -129,6 +181,46 @@ if (!S.id) {
     who.appendChild(mk("small", "hint", ago(data.createdAt)));
     head.appendChild(ava);
     head.appendChild(who);
+    if (data.owner === user.uid || admin) {
+      const mbtn = mk("button", "post-menu-btn", "");
+      mbtn.type = "button";
+      mbtn.setAttribute("aria-label", "Post options");
+      mbtn.setAttribute("aria-haspopup", "menu");
+      mbtn.setAttribute("aria-expanded", "false");
+      mbtn.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>';
+      const menu = mk("div", "post-menu");
+      menu.setAttribute("role", "menu");
+      menu.hidden = true;
+      const del = mk("button", "post-menu-item danger", "Delete post");
+      del.type = "button";
+      del.setAttribute("role", "menuitem");
+      del.onclick = async function (e) {
+        e.stopPropagation();
+        menu.hidden = true;
+        if (!confirm("Delete this post for everyone?")) return;
+        try {
+          await deleteDoc(doc(db, "posts", id));
+          if (data.owner === user.uid) {
+            const map = posted();
+            Object.keys(map).forEach(function (k) { if (map[k] === id) delete map[k]; });
+            savePosted(map);
+            refreshApp();
+          }
+          wrap.remove();
+        } catch (err) { say("Couldn't delete the post."); }
+      };
+      menu.appendChild(del);
+      mbtn.onclick = function (e) {
+        e.stopPropagation();
+        const open = menu.hidden;
+        document.querySelectorAll(".post-menu:not([hidden])").forEach(function (m) { m.hidden = true; });
+        menu.hidden = !open;
+        mbtn.setAttribute("aria-expanded", open ? "true" : "false");
+      };
+      menu.onclick = function (e) { e.stopPropagation(); };
+      head.appendChild(mbtn);
+      head.appendChild(menu);
+    }
     wrap.appendChild(head);
     const item = S.itemsFrom([data])[0];
     if (item) {
@@ -178,29 +270,18 @@ if (!S.id) {
     cBtn.setAttribute("aria-expanded", "false");
     bar.appendChild(cBtn);
 
-    if (data.owner === user.uid || admin) {
-      const del = mk("button", "secondary", "Delete post");
-      del.type = "button";
-      del.onclick = async function () {
-        if (!confirm("Delete this post for everyone?")) return;
-        try {
-          await deleteDoc(doc(db, "posts", id));
-          if (data.owner === user.uid) {
-            const map = posted();
-            Object.keys(map).forEach(function (k) { if (map[k] === id) delete map[k]; });
-            savePosted(map);
-            refreshApp();
-          }
-          wrap.remove();
-        } catch (e) { say("Couldn't delete the post."); }
-      };
-      bar.appendChild(del);
-    }
     wrap.appendChild(bar);
 
     const box = mk("div", "comments");
     box.hidden = true;
     const list = mk("div", "comment-list");
+    let replyTo = null;
+    const chip = mk("div", "c-replying");
+    chip.hidden = true;
+    const chipText = mk("span", "", "");
+    const chipX = mk("button", "c-act", "Cancel");
+    chipX.type = "button";
+    chip.appendChild(chipText); chip.appendChild(chipX);
     const form = mk("form", "shot-add");
     form.autocomplete = "off";
     const input = document.createElement("input");
@@ -218,19 +299,31 @@ if (!S.id) {
       if (!text) return;
       send.disabled = true;
       try {
-        await addDoc(collection(db, "posts", id, "comments"), { owner: user.uid, authorName: myName(), text: text, createdAt: serverTimestamp() });
+        const body = { owner: user.uid, authorName: myName(), text: text, createdAt: serverTimestamp() };
+        if (replyTo) { body.replyId = replyTo.id; body.replyName = replyTo.name; }
+        await addDoc(collection(db, "posts", id, "comments"), body);
         input.value = "";
-        await loadComments(id, data.owner, list);
+        setReply(null);
+        await loadComments(id, data.owner, list, setReply);
       } catch (err) { say("Couldn't send your comment."); }
       send.disabled = false;
     };
+    function setReply(t) {
+      replyTo = t;
+      chip.hidden = !t;
+      chipText.textContent = t ? "Replying to " + t.name : "";
+      input.placeholder = t ? "Write a reply" : "Write a kind, useful comment";
+      if (t) input.focus();
+    }
+    chipX.onclick = function () { setReply(null); };
     box.appendChild(list);
+    box.appendChild(chip);
     box.appendChild(form);
     wrap.appendChild(box);
     cBtn.onclick = function () {
       box.hidden = !box.hidden;
       cBtn.setAttribute("aria-expanded", box.hidden ? "false" : "true");
-      if (!box.hidden) loadComments(id, data.owner, list);
+      if (!box.hidden) loadComments(id, data.owner, list, setReply);
     };
     return wrap;
   }

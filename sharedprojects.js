@@ -613,15 +613,15 @@ function card(p) {
 
   const actions = mk("div", "sp-card-actions");
   if (window.CadenceChat) actions.appendChild(window.CadenceChat.button(p));
-  const toggle = mk("button", "secondary sp-toggle", isOpen ? "Hide stages" : "See stages (" + total + ")");
-  toggle.type = "button";
-  toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
-  toggle.onclick = function () { if (open.has(p.id)) open.delete(p.id); else open.add(p.id); render(); };
-  actions.appendChild(toggle);
   li.appendChild(actions);
 
   if (isOpen) {
     const body = mk("div", "sp-body");
+    const hideBtn = mk("button", "secondary sp-hide", "Hide stages");
+    hideBtn.type = "button";
+    hideBtn.setAttribute("aria-expanded", "true");
+    hideBtn.onclick = function () { open.delete(p.id); render(); };
+    body.appendChild(hideBtn);
     body.appendChild(mk("p", "hint sp-howto", manage(p) ? "Tap a stage to assign it, set a date or update it." : "Tap a stage to see details and update your own."));
     const stages = mk("ul", "sp-stages");
     if (!total) stages.appendChild(mk("li", "hint", "No stages yet."));
