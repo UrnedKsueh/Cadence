@@ -78,6 +78,12 @@ function build() {
   const title = mk("button", "chat-title chat-title-btn");
   title.type = "button";
   title.setAttribute("aria-haspopup", "dialog");
+  title.onclick = function () {
+    if (!cur) return;
+    showProjectSheet("");
+    const m = ui.jpanel.querySelector(".sp-members");
+    if (m) m.scrollIntoView({ block: "start" });
+  };
   const pick = mk("button", "chat-pick-btn");
   pick.type = "button";
   pick.setAttribute("aria-label", "Switch channel or stage");
@@ -88,10 +94,8 @@ function build() {
   stagesBtn.setAttribute("aria-label", "See the stages of this project");
   stagesBtn.onclick = function () {
     if (!cur) return;
-    const pid = cur.p.id;
     const stageId = cur.tid && cur.tid !== "general" && cur.tid !== "announcements" ? cur.tid : "";
-    close();
-    if (sp() && sp().show) sp().show(pid, stageId);
+    showProjectSheet(stageId);
   };
   head.appendChild(back); head.appendChild(titles); head.appendChild(stagesBtn);
 
@@ -135,19 +139,18 @@ function build() {
   panel.setAttribute("aria-label", "Channels and stages");
   drawer.appendChild(scrim); drawer.appendChild(panel);
 
-  const people = mk("div", "chat-drawer");
-  people.hidden = true;
-  const pscrim = mk("button", "chat-scrim");
-  pscrim.type = "button";
-  pscrim.setAttribute("aria-label", "Close people list");
-  const ppanel = mk("div", "chat-drawer-panel");
-  ppanel.setAttribute("role", "dialog");
-  ppanel.setAttribute("aria-label", "People in this project");
-  people.appendChild(pscrim); people.appendChild(ppanel);
-  pscrim.onclick = function () { people.hidden = true; };
-  title.onclick = function () { if (cur) openPeople(); };
+  const proj = mk("div", "chat-drawer");
+  proj.hidden = true;
+  const jscrim = mk("button", "chat-scrim");
+  jscrim.type = "button";
+  jscrim.setAttribute("aria-label", "Close project");
+  const jpanel = mk("div", "chat-drawer-panel chat-project-panel");
+  jpanel.setAttribute("role", "dialog");
+  jpanel.setAttribute("aria-label", "Project stages and settings");
+  proj.appendChild(jscrim); proj.appendChild(jpanel);
+  jscrim.onclick = function () { proj.hidden = true; };
 
-  root.appendChild(head); root.appendChild(list); root.appendChild(note); root.appendChild(form); root.appendChild(drawer); root.appendChild(people);
+  root.appendChild(head); root.appendChild(list); root.appendChild(note); root.appendChild(form); root.appendChild(drawer); root.appendChild(proj);
   document.body.appendChild(root);
 
   back.onclick = close;
@@ -165,111 +168,80 @@ function build() {
   });
   box.addEventListener("click", showSuggest);
   box.addEventListener("blur", function () { setTimeout(hideSuggest, 150); });
-  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !root.hidden) { if (!people.hidden) people.hidden = true; else if (!drawer.hidden) toggleDrawer(false); else if (!sheet.hidden) toggleSheet(false); else close(); } });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !root.hidden) { if (!proj.hidden) proj.hidden = true; else if (!drawer.hidden) toggleDrawer(false); else if (!sheet.hidden) toggleSheet(false); else close(); } });
 
-  ui = { suggest: suggest, root: root, title: title, pick: pick, list: list, note: note, box: box, send: send, back: back, plus: plus, sheet: sheet, drawer: drawer, panel: panel, people: people, ppanel: ppanel };
+  ui = { suggest: suggest, root: root, title: title, pick: pick, list: list, note: note, box: box, send: send, back: back, plus: plus, sheet: sheet, drawer: drawer, panel: panel, proj: proj, jpanel: jpanel };
   return ui;
 }
+
+function showProjectSheet(stageId) {
+  if (!cur || !sp() || !sp().panel) return;
+  toggleDrawer(false); toggleSheet(false);
+  ui.proj.hidden = false;
+  renderProjectSheet(stageId || "");
+  if (stageId) {
+    const t = ui.jpanel.querySelector('[data-stage="' + stageId + '"]');
+    if (t) t.scrollIntoView({ block: "center" });
+  }
+}
+
+function renderProjectSheet(focus) {
+  if (!cur) return;
+  const p = cur.p;
+  const panel = ui.jpanel;
+  const keep = panel.scrollTop;
+  panel.textContent = "";
+  panel.appendChild(mk("div", "chat-drawer-grip"));
+  const head = mk("div", "chat-proj-head");
+  head.appendChild(mk("h3", "chat-drawer-title", p.name));
+  const done = mk("button", "secondary chat-proj-close", "Done");
+  done.type = "button";
+  done.onclick = function () { ui.proj.hidden = true; };
+  head.appendChild(done);
+  panel.appendChild(head);
+  const total = p.stages.length;
+  const dn = p.stages.filter(function (s) { return s.status === "Done"; }).length;
+  const pct = total ? Math.round(dn / total * 100) : 0;
+  const bar = mk("div", "chat-card-bar");
+  const fill = mk("span", "chat-card-fill");
+  fill.style.width = pct + "%";
+  bar.appendChild(fill);
+  panel.appendChild(bar);
+  panel.appendChild(mk("small", "chat-proj-sum", total ? dn + " of " + total + " stages done \u00b7 " + pct + "%" : "No stages yet"));
+  const note = mk("p", "hint chat-proj-note");
+  note.hidden = true;
+  panel.appendChild(note);
+  panel.appendChild(sp().panel(p, focus));
+  panel.scrollTop = keep;
+}
+
+// sharedprojects.js messages (errors, "Code copied") show here while the sheet is open
+function notice(text) {
+  if (!ui || ui.proj.hidden) return false;
+  const n = ui.jpanel.querySelector(".chat-proj-note");
+  if (!n) return false;
+  n.textContent = text; n.hidden = !text;
+  return true;
+}
+
+window.addEventListener("cadence:sharedprojects:changed", function () {
+  if (!cur || !sp() || !sp().list) return;
+  const fresh = sp().list().filter(function (x) { return x.id === cur.p.id; })[0];
+  if (!fresh) { if (ui && !ui.root.hidden) close(); return; }
+  cur.p = fresh;
+  if (ui && !ui.root.hidden) {
+    setTitle();
+    ui.root.querySelector(".chat-stages").textContent = "Stages (" + fresh.stages.length + ")";
+    fillPicker();
+    if (!ui.proj.hidden) renderProjectSheet("");
+  }
+});
 
 function setTitle() {
   const n = cur.p.members.length;
   ui.title.textContent = "";
   ui.title.appendChild(mk("span", "chat-title-name", cur.p.name));
   ui.title.appendChild(mk("small", "chat-title-sub", n + (n === 1 ? " person" : " people") + " \u203a"));
-}
-
-function personRow(uid, label) {
-  const p = cur.p;
-  const li = mk("div", "chat-person");
-  li.appendChild(avatarFor(uid, label, "chat-ava"));
-  const t = mk("span", "chat-drawer-txt");
-  t.appendChild(mk("span", "chat-drawer-name", me && uid === me.uid ? label + " (you)" : label));
-  const role = uid === p.createdBy ? "Owner" : "";
-  if (role) t.appendChild(mk("small", "", role));
-  li.appendChild(t);
-  return li;
-}
-
-function openPeople() {
-  ui.people.hidden = false;
-  renderPeople();
-}
-
-async function addByHandle(raw, input, btn) {
-  const p = cur.p;
-  const h = raw.trim().replace(/^@/, "").toLowerCase();
-  if (!/^[a-z0-9_]{3,20}$/.test(h)) { say("Handles are 3-20 letters, numbers or _."); return; }
-  btn.disabled = true;
-  try {
-    const hs = await getDoc(doc(db, "handles", h));
-    if (!hs.exists()) { say("No one found with @" + h + "."); btn.disabled = false; return; }
-    const uid = hs.data().uid;
-    if (p.members.indexOf(uid) >= 0) { say("@" + h + " is already in this project."); btn.disabled = false; return; }
-    const prof = await getDoc(doc(db, "profiles", uid));
-    const nick = prof.exists() && prof.data().nickname ? String(prof.data().nickname) : h;
-    await sp().addPeople(p, [{ uid: uid, nickname: prof.exists() && prof.data().nickname ? String(prof.data().nickname) : "", handle: h }]);
-    input.value = "";
-    say("");
-  } catch (e) { say("Couldn't add that person. Check your connection and try again."); }
-  if (ui && !ui.people.hidden) { setTitle(); renderPeople(); }
-}
-
-function renderPeople() {
-  const p = cur.p;
-  const panel = ui.ppanel;
-  const keep = panel.scrollTop;
-  panel.textContent = "";
-  panel.appendChild(mk("div", "chat-drawer-grip"));
-  panel.appendChild(mk("h3", "chat-drawer-title", p.name));
-  panel.appendChild(mk("p", "chat-drawer-sec", "In this project \u00b7 " + p.members.length));
-  p.members.forEach(function (uid) { panel.appendChild(personRow(uid, (p.names && p.names[uid]) || "Member")); });
-  if (manage(p)) {
-    const friends = window.CadenceFriends && window.CadenceFriends.list ? window.CadenceFriends.list() : [];
-    const avail = friends.filter(function (f) { return p.members.indexOf(f.uid) < 0; });
-    panel.appendChild(mk("p", "chat-drawer-sec", "Add people"));
-    avail.forEach(function (f) {
-      const li = mk("div", "chat-person");
-      li.appendChild(avatarFor(f.uid, f.nickname || f.handle || "?", "chat-ava"));
-      const t = mk("span", "chat-drawer-txt");
-      t.appendChild(mk("span", "chat-drawer-name", f.nickname || ("@" + f.handle)));
-      if (f.handle) t.appendChild(mk("small", "", "@" + f.handle));
-      li.appendChild(t);
-      const b = mk("button", "secondary chat-add", "Add");
-      b.type = "button";
-      b.setAttribute("aria-label", "Add " + (f.nickname || f.handle) + " to this project");
-      b.onclick = async function () { b.disabled = true; await sp().addPeople(p, [f]); setTitle(); renderPeople(); };
-      li.appendChild(b);
-      panel.appendChild(li);
-    });
-    if (!friends.length) panel.appendChild(mk("p", "hint chat-people-hint", "No friends on Cadence yet. Add friends from your Profile tab, or add someone by handle."));
-    else if (!avail.length) panel.appendChild(mk("p", "hint chat-people-hint", "All your friends are already here."));
-    const form = mk("form", "chat-handle-form");
-    form.autocomplete = "off";
-    const input = mk("input", "field");
-    input.placeholder = "Add by handle, e.g. @mei";
-    input.maxLength = 21;
-    input.setAttribute("aria-label", "Handle of the person to add");
-    const go = mk("button", "", "Add");
-    go.type = "submit";
-    form.appendChild(input); form.appendChild(go);
-    form.onsubmit = function (e) { e.preventDefault(); addByHandle(input.value, input, go); };
-    panel.appendChild(form);
-  }
-  if (p.inviteCode && (manage(p) || true)) {
-    const code = p.inviteCode.slice(0, 4) + "-" + p.inviteCode.slice(4);
-    panel.appendChild(mk("p", "chat-drawer-sec", "Invite code"));
-    const row = mk("div", "chat-person");
-    row.appendChild(mk("strong", "chat-code", code));
-    const copy = mk("button", "secondary chat-add", "Copy");
-    copy.type = "button";
-    copy.onclick = async function () {
-      try { await navigator.clipboard.writeText(code); say("Code copied. Send it to your classmates."); }
-      catch (e) { say("Couldn't copy. Select the code and copy it by hand."); }
-    };
-    row.appendChild(copy);
-    panel.appendChild(row);
-  }
-  panel.scrollTop = keep;
 }
 
 function threadLabel(tid) {
@@ -530,7 +502,7 @@ function cardNode(m, mine) {
   const btns = mk("div", "chat-card-btns");
   const open = mk("button", "secondary", "Open project");
   open.type = "button";
-  open.onclick = function () { const pid = p.id; close(); if (sp() && sp().show) sp().show(pid, ""); };
+  open.onclick = function () { showProjectSheet(""); };
   btns.appendChild(open);
   if (now) {
     const chat = mk("button", "secondary", "Chat about " + now.name);
@@ -594,7 +566,7 @@ function render(stick) {
       sb.appendChild(mk("small", "", timeLabel(m.t) + " \u00b7 Open stage \u203a"));
       sb.setAttribute("aria-label", m.text + ". Open this stage in the project.");
       const pid = cur.p.id, sid = cur.tid;
-      sb.onclick = function () { close(); if (sp() && sp().show) sp().show(pid, sid); };
+      sb.onclick = function () { showProjectSheet(sid); };
       list.appendChild(sb);
       return;
     }
@@ -647,7 +619,7 @@ function render(stick) {
       };
       act("React", function () { cur.picker = m.id; render(false); });
       act("Copy", function () { if (navigator.clipboard) navigator.clipboard.writeText(m.text).catch(function () {}); });
-      act("Save", function () { say(addSaved(m.text, cur.p.name + " \u00b7 " + threadLabel(cur.tid)) ? "Saved to your notes." : "Couldn't save. This browser may be blocking storage."); });
+      act("Save", function () { say(addSaved(m.text, cur.p.name + " \u00b7 " + threadLabel(cur.tid), cur.p.id) ? "Saved to your notes." : "Couldn't save. This browser may be blocking storage."); });
       if (canPin) act(cur.pins.has(m.id) ? "Unpin" : "Pin", function () { setPin(m.id, !cur.pins.has(m.id)); });
       if (canDel) act("Delete", function () { removeMsg(m.id); }, true);
       row.appendChild(bar);
@@ -854,6 +826,7 @@ function openChat(p, tid) {
   cur = { p: p, tid: "", msgs: new Map(), pins: new Map(), picker: "", menu: "", unsub: null, oldest: null, hasMore: false };
   setTitle();
   ui.root.querySelector(".chat-stages").textContent = "Stages (" + p.stages.length + ")";
+  ui.proj.hidden = true;
   ui.root.hidden = false;
   document.body.classList.add("chat-open");
   const start = tid && threadsOf(p).some(function (t) { return t.id === tid; }) ? tid : "general";
@@ -865,7 +838,7 @@ function close() {
   picked.clear();
   if (cur && cur.unsub) cur.unsub();
   cur = null;
-  if (ui) { ui.root.hidden = true; ui.drawer.hidden = true; ui.people.hidden = true; ui.sheet.hidden = true; }
+  if (ui) { ui.root.hidden = true; ui.drawer.hidden = true; ui.proj.hidden = true; ui.sheet.hidden = true; }
   document.body.classList.remove("chat-open");
   if (sp() && sp().rerender) sp().rerender();
 }
@@ -910,11 +883,11 @@ function readSaved() {
   } catch (e) { return []; }
 }
 function writeSaved(a) { try { localStorage.setItem(savedKey(), JSON.stringify(a.slice(-SAVED_MAX))); return true; } catch (e) { return false; } }
-function addSaved(text, from) {
+function addSaved(text, from, pid) {
   const t = String(text || "").trim().slice(0, MAX_LEN);
   if (!t) return false;
   const a = readSaved();
-  a.push({ id: Math.random().toString(36).slice(2, 9), text: t, t: Date.now(), from: from ? String(from).slice(0, 60) : "" });
+  a.push({ id: Math.random().toString(36).slice(2, 9), text: t, t: Date.now(), from: from ? String(from).slice(0, 60) : "", pid: pid ? String(pid).slice(0, 40) : "" });
   return writeSaved(a);
 }
 const URL_RE = /(https?:\/\/[^\s<>"']+)/g;
@@ -1055,56 +1028,47 @@ function setTabBadge(n, mention) {
   tab.setAttribute("aria-label", "Projects, " + n + (n === 1 ? " chat has" : " chats have") + " new messages" + (mention ? ", you were mentioned" : ""));
 }
 
-function renderInbox(box, projects, taskCount) {
-  if (!box) return;
-  box.textContent = "";
-  if (!me) { box.hidden = true; setTabBadge(0, false); return; }
-  box.hidden = false;
-  const rows = projects.map(function (p) { return { p: p, u: unreadFor(p), t: lastChat(p) }; });
-  const unread = rows.filter(function (r) { return r.u.threads.size; }).length;
-  const ment = rows.filter(function (r) { return r.u.mention; }).length;
-  setTabBadge(unread, ment > 0);
-  const again = function () { renderInbox(box, projects, taskCount); };
-  box.appendChild(mk("h3", "chat-inbox-title", "Team chat"));
-  const strip = mk("div", "chat-strip");
-  strip.appendChild(inboxTile("Unread", unread, "unread", inboxFilter === "unread", function () { inboxFilter = inboxFilter === "unread" ? "" : "unread"; again(); }));
-  strip.appendChild(inboxTile("@ Mentions", ment, "mention", inboxFilter === "mention", function () { inboxFilter = inboxFilter === "mention" ? "" : "mention"; again(); }));
-  strip.appendChild(inboxTile("Saved", readSaved().length, "saved", false, openSaved));
-  strip.appendChild(inboxTile("My tasks", taskCount || 0, "tasks", false, function () {
-    const t = document.getElementById("myTasks");
-    if (t && !t.hidden) t.scrollIntoView({ behavior: "smooth", block: "start" });
-  }));
-  box.appendChild(strip);
-  let shown = rows.filter(function (r) { return inboxFilter === "unread" ? r.u.threads.size : inboxFilter === "mention" ? r.u.mention : true; });
-  shown.sort(function (a, b) { return (b.u.mention - a.u.mention) || (!!b.u.threads.size - !!a.u.threads.size) || (b.t - a.t); });
-  if (!shown.length) box.appendChild(mk("p", "hint", inboxFilter === "mention" ? "No mentions waiting." : "You're all caught up."));
-  const ul = mk("ul", "chat-inbox-list");
-  shown.forEach(function (r) {
-    const p = r.p;
-    const li = mk("li", "");
-    const b = mk("button", "chat-inbox-row" + (r.u.threads.size ? " unread" : ""));
-    b.type = "button";
-    b.appendChild(mk("span", "chat-inbox-ico", (p.name || "?").trim().slice(0, 2).toUpperCase()));
-    const t = mk("span", "chat-drawer-txt");
-    t.appendChild(mk("span", "chat-drawer-name", p.name));
-    const now = p.stages.filter(function (s) { return s.status !== "Done"; })[0];
-    t.appendChild(mk("small", "", (r.t ? "Active " + ago(r.t) : "No messages yet") + (now ? " \u00b7 Now: " + now.name : "")));
-    b.appendChild(t);
-    if (r.u.threads.size) {
-      const bd = mk("span", "chat-pill", r.u.mention ? "@ " + r.u.threads.size : String(r.u.threads.size));
-      bd.setAttribute("aria-label", (r.u.mention ? "You were mentioned. " : "") + r.u.threads.size + " threads with new messages");
-      b.appendChild(bd);
-    }
-    b.onclick = function () {
-      const first = r.u.mention && p.chatMention && p.chatMention[me.uid] ? p.chatMention[me.uid].thread : Array.from(r.u.threads)[0];
-      openChat(p, first || "");
-    };
-    li.appendChild(b); ul.appendChild(li);
-  });
-  box.appendChild(ul);
+// The global strip is gone: the same four counters now live inside each project card.
+function renderInbox(box, projects) {
+  if (box) { box.textContent = ""; box.hidden = true; }
+  if (!me) { setTabBadge(0, false); return; }
+  const rows = projects.map(function (p) { return unreadFor(p); });
+  setTabBadge(rows.filter(function (u) { return u.threads.size; }).length, rows.some(function (u) { return u.mention; }));
 }
 
-window.CadenceChat = { button: button, stageButton: stageButton, open: openChat, log: log, unreadFor: unreadFor, inbox: renderInbox };
+// Four small counters for one project: Unread, Mentions, Saved, My tasks (taskStageIds = my open stages here)
+function tiles(p, taskStageIds) {
+  const wrap = mk("div", "chat-tiles");
+  if (!me) { wrap.hidden = true; return wrap; }
+  const u = unreadFor(p);
+  const mentioned = u.mention ? 1 : 0;
+  const saved = readSaved().filter(function (x) { return x.pid === p.id; }).length;
+  const tasks = taskStageIds || [];
+  const mine = [
+    ["Unread", u.threads.size, function () { openChat(p, Array.from(u.threads)[0] || ""); }, u.threads.size > 0],
+    ["@ Mentions", mentioned, function () { const m = p.chatMention && p.chatMention[me.uid]; openChat(p, m ? m.thread : ""); }, mentioned > 0],
+    ["Saved", saved, openSaved, false],
+    ["My tasks", tasks.length, function () { if (sp() && sp().show) sp().show(p.id, tasks[0] || ""); }, tasks.length > 0]
+  ];
+  mine.forEach(function (t) {
+    const b = mk("button", "chat-tile" + (t[3] ? " has" : ""));
+    b.type = "button";
+    b.appendChild(mk("strong", "", String(t[1])));
+    b.appendChild(mk("small", "", t[0]));
+    b.setAttribute("aria-label", t[0] + ": " + t[1] + " in " + p.name);
+    b.onclick = t[2];
+    wrap.appendChild(b);
+  });
+  return wrap;
+}
+
+function openProject(p, stageId) {
+  if (!me) return;
+  if (!cur || cur.p.id !== p.id) openChat(p, stageId || "");
+  showProjectSheet(stageId || "");
+}
+
+window.CadenceChat = { openProject: openProject, notice: notice, close: close, button: button, stageButton: stageButton, open: openChat, log: log, unreadFor: unreadFor, inbox: renderInbox, tiles: tiles };
 
 let lastPull = Date.now();
 document.addEventListener("visibilitychange", function () {

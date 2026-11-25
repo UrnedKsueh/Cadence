@@ -1644,3 +1644,31 @@ strong.tap:hover { text-decoration: underline; }
 .proj-jump { margin-top: 6px; }
 .proj-jump summary { cursor: pointer; color: var(--muted); font-size: 0.82rem; min-height: 32px; display: flex; align-items: center; }
 .proj-jump .field { margin-top: 4px; }
+
+/* ---- composer: counter inside the box; landscape prompt inside the card ---- */
+.c-field { position: relative; flex: 1; min-width: 0; }
+.c-field .c-body { display: block; width: 100%; padding-bottom: 30px; }
+.composer .c-field .c-count { position: absolute; right: 14px; bottom: 8px; margin: 0; justify-self: auto; pointer-events: none; font-size: 0.78rem; }
+.c-prompt { display: none; }
+@media (min-width: 900px) and (orientation: landscape) {
+  .home-hello .hint { display: none; }
+  .home-hello { margin-bottom: 14px; }
+  .composer .c-prompt { display: block; margin: 0; font-size: 1rem; color: var(--text); }
+}
+
+/* ---- per-project counters (inside each shared project card) ---- */
+.chat-tiles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 10px 0 4px; }
+.chat-tiles[hidden] { display: none; }
+.chat-tiles .chat-tile { flex: none; min-height: 52px; padding: 8px 8px; border-radius: 12px; gap: 0; min-width: 0; }
+.chat-tiles .chat-tile strong { font-size: 1.1rem; }
+.chat-tiles .chat-tile small { font-size: 0.7rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+
+/* ---- Project sheet inside team chat ---- */
+.chat-project-panel { max-height: 92%; min-height: 55%; }
+.chat-proj-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.chat-proj-head .chat-drawer-title { margin: 0 8px; flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.chat-proj-close { flex: none; min-height: 40px; border-radius: 999px; padding: 0 16px; }
+.chat-proj-sum { display: block; margin: 6px 8px 0; color: var(--muted); }
+.chat-project-panel .chat-card-bar { margin: 8px 8px 0; }
+.chat-proj-note { margin: 8px; }
+.chat-project-panel .sp-body { margin-top: 10px; padding: 0 4px; }

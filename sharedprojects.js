@@ -37,6 +37,7 @@ function mk(tag, cls, text) {
 function ms(t) { return t && typeof t.toMillis === "function" ? t.toMillis() : Number(t) || 0; }
 function newId() { return Math.random().toString(36).slice(2, 8); }
 function say(text) {
+  if (text && window.CadenceChat && window.CadenceChat.notice && window.CadenceChat.notice(text)) return;
   const m = $("sharedMsg");
   m.textContent = text || "";
   m.hidden = !text;
@@ -572,6 +573,38 @@ function fold(title, node) {
   return d;
 }
 
+// Everything about one project, built for the team chat's Project sheet:
+// stages, adding a stage, people, invite code and delete.
+function projectPanel(p, focusStageId) {
+  if (focusStageId) openStages.add(focusStageId);
+  const total = p.stages.length;
+  const body = mk("div", "sp-body");
+  body.appendChild(mk("p", "hint sp-howto", manage(p) ? "Tap a stage to assign it, set a date or update it." : "Tap a stage to see details and update your own."));
+  const stages = mk("ul", "sp-stages");
+  if (!total) stages.appendChild(mk("li", "hint", "No stages yet."));
+  p.stages.forEach(function (s, i) { stages.appendChild(stageRow(p, s, i)); });
+  body.appendChild(stages);
+  if (manage(p)) body.appendChild(fold("Add a stage", stageAdder(p)));
+  body.appendChild(memberBar(p));
+  if (manage(p)) body.appendChild(inviteBox(p));
+  if (manage(p)) {
+    const del = mk("button", "secondary sp-delete", "Delete project");
+    del.type = "button";
+    del.onclick = async function () {
+      if (!confirm("Delete \"" + p.name + "\" for everyone? This can't be undone.")) return;
+      try {
+        if (p.inviteCode) { try { await deleteDoc(doc(db, "invites", p.inviteCode)); } catch (e) {} }
+        await deleteDoc(doc(db, "sharedProjects", p.id));
+        open.delete(p.id);
+        if (window.CadenceChat && window.CadenceChat.close) window.CadenceChat.close();
+        await load(true);
+      } catch (e) { say("Couldn't delete. Check your connection and try again."); }
+    };
+    body.appendChild(del);
+  }
+  return body;
+}
+
 function card(p) {
   const li = mk("li", "project shared-project");
   const isOpen = open.has(p.id);
@@ -611,41 +644,13 @@ function card(p) {
     li.appendChild(nb);
   }
 
+  if (window.CadenceChat && window.CadenceChat.tiles) {
+    li.appendChild(window.CadenceChat.tiles(p, myTasks().filter(function (t) { return t.p === p; }).map(function (t) { return t.s.id; })));
+  }
   const actions = mk("div", "sp-card-actions");
   if (window.CadenceChat) actions.appendChild(window.CadenceChat.button(p));
   li.appendChild(actions);
 
-  if (isOpen) {
-    const body = mk("div", "sp-body");
-    const hideBtn = mk("button", "secondary sp-hide", "Hide stages");
-    hideBtn.type = "button";
-    hideBtn.setAttribute("aria-expanded", "true");
-    hideBtn.onclick = function () { open.delete(p.id); render(); };
-    body.appendChild(hideBtn);
-    body.appendChild(mk("p", "hint sp-howto", manage(p) ? "Tap a stage to assign it, set a date or update it." : "Tap a stage to see details and update your own."));
-    const stages = mk("ul", "sp-stages");
-    if (!total) stages.appendChild(mk("li", "hint", "No stages yet."));
-    p.stages.forEach(function (s, i) { stages.appendChild(stageRow(p, s, i)); });
-    body.appendChild(stages);
-    if (manage(p)) body.appendChild(fold("Add a stage", stageAdder(p)));
-    body.appendChild(memberBar(p));
-    if (manage(p)) body.appendChild(inviteBox(p));
-    if (manage(p)) {
-      const del = mk("button", "secondary sp-delete", "Delete project");
-      del.type = "button";
-      del.onclick = async function () {
-        if (!confirm("Delete \"" + p.name + "\" for everyone? This can't be undone.")) return;
-        try {
-          if (p.inviteCode) { try { await deleteDoc(doc(db, "invites", p.inviteCode)); } catch (e) {} }
-          await deleteDoc(doc(db, "sharedProjects", p.id));
-          open.delete(p.id);
-          await load(true);
-        } catch (e) { say("Couldn't delete. Check your connection and try again."); }
-      };
-      body.appendChild(del);
-    }
-    li.appendChild(body);
-  }
   return li;
 }
 
@@ -698,16 +703,9 @@ function renderTasks() {
 }
 
 function showProject(id, stageId) {
-  open.add(id);
-  if (stageId) openStages.add(stageId);
-  if (window.showTab) window.showTab("projects");
-  render();
-  const target = stageId ? $("sharedList").querySelector('[data-stage="' + stageId + '"]') : null;
-  if (target) { target.scrollIntoView({ block: "center" }); return; }
-  const cards = $("sharedList").children;
-  for (let i = 0; i < projects.length; i++) {
-    if (projects[i].id === id && cards[i]) { cards[i].scrollIntoView({ block: "start" }); break; }
-  }
+  const p = projects.filter(function (x) { return x.id === id; })[0];
+  if (!p) return;
+  if (window.CadenceChat && window.CadenceChat.openProject) window.CadenceChat.openProject(p, stageId || "");
 }
 
 function render() {
@@ -720,7 +718,7 @@ function render() {
   const list = $("sharedList");
   list.textContent = "";
   projects.forEach(function (p) { list.appendChild(card(p)); });
-  if (window.CadenceChat && window.CadenceChat.inbox) window.CadenceChat.inbox($("chatInbox"), projects, myTasks().length);
+  if (window.CadenceChat && window.CadenceChat.inbox) window.CadenceChat.inbox($("chatInbox"), projects);
   const empty = $("sharedEmpty");
   empty.hidden = projects.length > 0 || !me;
   empty.querySelector("p").textContent = admin
@@ -827,6 +825,7 @@ window.CadenceSharedProjects = {
   reload: function () { return load(true); },
   rerender: function () { render(); },
   patch: patch,
+  panel: projectPanel,
   addPeople: addPeople,
   show: showProject
 };
