@@ -1,4 +1,4 @@
-// Shared profile pictures: custom photo (small JPEG) or a coloured initial. Used by the feed and Profile.
+// Shared profile pictures: a small custom JPEG or a coloured initial. Used by the feed and Profile.
 import { getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
@@ -19,7 +19,7 @@ export async function getProfile(uid) {
 
 function okPhoto(s) { return typeof s === "string" && s.length <= 14000 && s.indexOf("data:image/jpeg;base64,") === 0; }
 
-// Fill an avatar element from a profile ({nickname, color, photo}); name is the fallback for the initial
+// Fill an avatar element from a profile ({nickname, color, photo}). The name is the fallback for the initial.
 export function paintAva(el, p, name) {
   const label = (p && p.nickname) || name || "?";
   const c = (p && p.color) || COLORS[0];
@@ -43,7 +43,7 @@ export function avatarEl(p, cls, name) {
   paintAva(el, p, name);
   return el;
 }
-// Avatar for someone by uid: shows their initial right away, swaps in their picture when it loads
+// Avatar for a person by uid: shows their initial straight away and swaps in their picture once it loads
 export function avatarFor(uid, name, cls) {
   const el = avatarEl(null, cls, name);
   getProfile(uid).then(function (p) { if (p) paintAva(el, p, name); });

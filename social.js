@@ -1,4 +1,4 @@
-// Profiles and friends (Firebase). Runs after cloud.js. Needs the rules in firestore-rules-friends.txt.
+// Profiles and friends (Firebase). Loads after cloud.js. Needs the rules in firestore-rules.txt.
 import { getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, getDocs, onSnapshot, writeBatch, serverTimestamp }

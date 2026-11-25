@@ -1,5 +1,5 @@
-// Shared projects: admins create a project, add members and assign stages; members see their projects
-// and update the status of their own stages. Runs after cloud.js.
+// Shared projects: admins and students create projects, add members and assign stages.
+// Members see their projects and update the status of their own stages. Loads after cloud.js.
 import { avatarEl, avatarFor } from "./avatars.js";
 import { getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -248,7 +248,7 @@ function stageRow(p, stage, i) {
   det.open = openStages.has(stage.id);
   det.addEventListener("toggle", function () { if (det.open) openStages.add(stage.id); else openStages.delete(stage.id); });
 
-  // Summary line: what a person sees without tapping
+  // Summary line: what is visible without tapping
   const sum = mk("summary", "sp-stage-sum");
   const dot = mk("span", "sp-dot " + statusClass(stage.status));
   dot.setAttribute("aria-hidden", "true");

@@ -1,5 +1,5 @@
-// Resources tab: admins add links, signed-in students browse, search, filter and star favourites.
-// Runs after cloud.js. Data lives in the "resources" collection; stars stay on the student's own device.
+// Resources tab: admins add links; signed-in students browse, search, filter and star favourites.
+// Loads after cloud.js. Data lives in the "resources" collection; stars stay on the student's own device.
 import { getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, deleteDoc, collection, query, orderBy, limit, getDocs, addDoc, updateDoc, serverTimestamp }

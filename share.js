@@ -1,4 +1,4 @@
-// Share controls and the public viewer's data loading (Firebase). Runs after cloud.js.
+// Share controls and data loading for the public viewer (Firebase). Loads after cloud.js.
 import { getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, where, limit, getDocs }

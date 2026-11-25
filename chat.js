@@ -1,10 +1,12 @@
-// Project chat: every shared project gets # General, # Announcements (owner/admin-only posting) and one thread per stage.
-// Messages live in sharedProjects/{pid}/threads/{threadId}/messages. Runs after sharedprojects.js.
-// Free-plan friendly: only the open thread is listened to, history loads 30 at a time, unread uses a map on the project doc.
+// Project chat: each shared project gets # General, # Announcements (only the owner and admins can post),
+// a thread for every stage, and any custom channels the owner adds.
+// Messages are stored in sharedProjects/{pid}/threads/{threadId}/messages. Loads after sharedprojects.js.
+// Built for the free plan: only the open thread is listened to, history loads 30 messages at a time,
+// and unread state is a map on the project document.
 import { avatarFor } from "./avatars.js";
 import { getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, getDoc, collection, query, where, orderBy, limit, startAfter, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp, Timestamp, arrayUnion, arrayRemove }
+import { getFirestore, doc, getDoc, collection, query, where, orderBy, limit, startAfter, getDocs, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp, Timestamp, arrayUnion, arrayRemove }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const db = getFirestore(getApp());
@@ -15,10 +17,10 @@ const MENTION_RE = /@([a-z0-9_]{3,20})/gi;
 
 let me = null;
 let admin = false;
-let cur = null; // { p, tid, msgs: Map, unsub, oldest, hasMore }
+let cur = null; // Open chat: { p, tid, msgs: Map, unsub, oldest, hasMore }
 let ui = null;
 let lastSend = 0;
-const picked = new Map(); // people chosen from the @ list: uid -> name
+const picked = new Map(); // People chosen from the @ list: uid -> name
 
 function mk(tag, cls, text) {
   const n = document.createElement(tag);
@@ -29,7 +31,7 @@ function mk(tag, cls, text) {
 function ms(t) { return t && typeof t.toMillis === "function" ? t.toMillis() : Number(t) || 0; }
 function sp() { return window.CadenceSharedProjects; }
 
-// ---- which messages has this person seen (kept on this device) ----
+// ---- Read state, kept on this device ----
 function seenKey() { return "cadence.chatSeen." + (me ? me.uid : "anon"); }
 function readSeen() { try { return JSON.parse(localStorage.getItem(seenKey()) || "{}") || {}; } catch (e) { return {}; } }
 function markSeen(pid, tid) {
@@ -38,16 +40,74 @@ function markSeen(pid, tid) {
     s[pid] = s[pid] || {};
     s[pid][tid] = Date.now();
     localStorage.setItem(seenKey(), JSON.stringify(s));
+    queueSeen(pid, tid, s[pid][tid]);
   } catch (e) {}
 }
 
+// ---- Read state synced across devices in chatState/{uid}. Best effort, batched into a few small writes ----
+let seenDirty = {}, seenTimer = 0, seenSyncOff = false, lastSeenPull = 0;
+function queueSeen(pid, tid, t) {
+  if (!me || seenSyncOff) return;
+  (seenDirty[pid] = seenDirty[pid] || {})[tid] = t;
+  clearTimeout(seenTimer);
+  seenTimer = setTimeout(flushSeen, 6000);
+}
+async function flushSeen() {
+  clearTimeout(seenTimer); seenTimer = 0;
+  if (!me || seenSyncOff || !Object.keys(seenDirty).length) return;
+  const batch = seenDirty; seenDirty = {};
+  try { await setDoc(doc(db, "chatState", me.uid), { seen: batch, updatedAt: Date.now() }, { merge: true }); }
+  catch (e) { if (e && e.code === "permission-denied") seenSyncOff = true; }
+}
+async function pullSeen() {
+  if (!me || seenSyncOff) return false;
+  lastSeenPull = Date.now();
+  try {
+    const s = await getDoc(doc(db, "chatState", me.uid));
+    if (!s.exists()) return false;
+    const remote = s.data().seen;
+    if (!remote || typeof remote !== "object") return false;
+    const local = readSeen();
+    let changed = false;
+    Object.keys(remote).forEach(function (pid) {
+      const r = remote[pid];
+      if (!r || typeof r !== "object") return;
+      local[pid] = local[pid] || {};
+      Object.keys(r).forEach(function (tid) {
+        const v = Number(r[tid]) || 0;
+        if (v > (local[pid][tid] || 0)) { local[pid][tid] = v; changed = true; }
+      });
+    });
+    if (changed) { try { localStorage.setItem(seenKey(), JSON.stringify(local)); } catch (e) {} }
+    return changed;
+  } catch (e) {
+    if (e && e.code === "permission-denied") seenSyncOff = true;
+    return false;
+  }
+}
+
+// Custom channels are stored on the project document as channels: [{ id, name }].
+// Only the owner or an admin can change them.
+const MAX_CHANNELS = 8;
+const FINE = window.matchMedia("(hover: hover) and (pointer: fine)");
+const TOUCH = window.matchMedia("(hover: none)");
+const WIDE = window.matchMedia("(min-width: 900px) and (orientation: landscape)");
+let fq = ""; // Current find-in-chat query
+function chansOf(p) {
+  return (Array.isArray(p.channels) ? p.channels : [])
+    .filter(function (c) { return c && /^ch[a-z0-9]{4,10}$/.test(String(c.id || "")) && c.name; })
+    .map(function (c) { return { id: String(c.id), name: String(c.name).slice(0, 24) }; });
+}
+function isStageTid(p, tid) { return p.stages.some(function (s) { return s.id === tid; }); }
+
 function threadsOf(p) {
   const out = [{ id: "general", label: "# General" }, { id: "announcements", label: "# Announcements" }];
+  chansOf(p).forEach(function (c) { out.push({ id: c.id, label: "# " + c.name, custom: true }); });
   p.stages.forEach(function (s) { out.push({ id: s.id, label: "Stage: " + s.name }); });
   return out;
 }
 
-// { threads: Set of thread ids with unread messages, mention: bool }
+// Returns { threads: Set of thread IDs with unread messages, mention: boolean }
 function unreadFor(p) {
   const res = { threads: new Set(), mention: false };
   if (!me) return res;
@@ -61,7 +121,7 @@ function unreadFor(p) {
   return res;
 }
 
-// ---- overlay ----
+// ---- Overlay ----
 function build() {
   if (ui) return ui;
   const root = mk("div", "chat-overlay");
@@ -94,10 +154,27 @@ function build() {
   stagesBtn.setAttribute("aria-label", "See the stages of this project");
   stagesBtn.onclick = function () {
     if (!cur) return;
-    const stageId = cur.tid && cur.tid !== "general" && cur.tid !== "announcements" ? cur.tid : "";
+    const stageId = cur.tid && isStageTid(cur.p, cur.tid) ? cur.tid : "";
     showProjectSheet(stageId);
   };
-  head.appendChild(back); head.appendChild(titles); head.appendChild(stagesBtn);
+  const findBtn = mk("button", "secondary chat-find");
+  findBtn.type = "button";
+  findBtn.setAttribute("aria-label", "Search and pinned messages");
+  findBtn.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-3.5-3.5"></path></svg>';
+  findBtn.onclick = function () { if (cur) openFind("search"); };
+  head.appendChild(back); head.appendChild(titles); head.appendChild(findBtn); head.appendChild(stagesBtn);
+  // Phones: swipe right on the header to open the channel list, swipe left to close it
+  let hx = 0, hy = 0, hs = false, swipedAt = 0;
+  head.addEventListener("pointerdown", function (e) { if (e.pointerType !== "touch") { hs = false; return; } hx = e.clientX; hy = e.clientY; hs = true; });
+  head.addEventListener("pointerup", function (e) {
+    if (!hs) return;
+    hs = false;
+    const dx = e.clientX - hx, dy = Math.abs(e.clientY - hy);
+    if (!cur || WIDE.matches || dy > 40 || Math.abs(dx) < 70) return;
+    swipedAt = Date.now();
+    toggleDrawer(dx > 0);
+  });
+  head.addEventListener("click", function (e) { if (Date.now() - swipedAt < 400) { e.stopPropagation(); e.preventDefault(); } }, true);
 
   const list = mk("div", "chat-list");
   list.setAttribute("role", "log");
@@ -110,7 +187,7 @@ function build() {
   form.autocomplete = "off";
   const box = mk("textarea", "field chat-input");
   box.rows = 1; box.maxLength = MAX_LEN;
-  box.placeholder = "Message, or type @ to mention";
+  box.placeholder = "Message";
   box.setAttribute("aria-label", "Message");
   const plus = mk("button", "chat-plus", "+");
   plus.type = "button";
@@ -126,10 +203,22 @@ function build() {
   suggest.hidden = true;
   suggest.setAttribute("role", "listbox");
   suggest.setAttribute("aria-label", "People to mention");
-  form.appendChild(suggest); form.appendChild(sheet);
+  const jump = mk("button", "chat-jump");
+  jump.type = "button"; jump.hidden = true;
+  jump.setAttribute("aria-label", "Jump to the latest messages");
+  form.appendChild(suggest); form.appendChild(sheet); form.appendChild(jump);
+  const rbar = mk("div", "chat-replybar");
+  rbar.hidden = true;
+  const rtxt = mk("span", "chat-replybar-txt");
+  const rclose = mk("button", "chat-replybar-x", "\u00d7");
+  rclose.type = "button";
+  rclose.setAttribute("aria-label", "Cancel");
+  rclose.onclick = function () { if (cur) { cur.reply = null; cur.edit = null; renderBar(); } };
+  rbar.appendChild(rtxt); rbar.appendChild(rclose);
+  form.appendChild(rbar);
   form.appendChild(plus); form.appendChild(box); form.appendChild(send);
 
-  const drawer = mk("div", "chat-drawer");
+  const drawer = mk("div", "chat-drawer chat-channels");
   drawer.hidden = true;
   const scrim = mk("button", "chat-scrim");
   scrim.type = "button";
@@ -150,7 +239,21 @@ function build() {
   proj.appendChild(jscrim); proj.appendChild(jpanel);
   jscrim.onclick = function () { proj.hidden = true; };
 
-  root.appendChild(head); root.appendChild(list); root.appendChild(note); root.appendChild(form); root.appendChild(drawer); root.appendChild(proj);
+  function sheetBox(extra, label, closer) {
+    const box = mk("div", "chat-drawer " + extra);
+    box.hidden = true;
+    const sc = mk("button", "chat-scrim");
+    sc.type = "button"; sc.setAttribute("aria-label", "Close"); sc.onclick = closer;
+    const pn = mk("div", "chat-drawer-panel " + extra + "-panel");
+    pn.setAttribute("role", "dialog"); pn.setAttribute("aria-label", label);
+    box.appendChild(sc); box.appendChild(pn);
+    return { box: box, panel: pn };
+  }
+  const fb = sheetBox("chat-findbox", "Find in this channel", function () { closeFind(); });
+  const sb = sheetBox("chat-switchbox", "Jump to a channel or stage", function () { closeSwitch(); });
+  const people = mk("aside", "chat-people");
+  people.setAttribute("aria-label", "People in this project");
+  root.appendChild(head); root.appendChild(list); root.appendChild(note); root.appendChild(form); root.appendChild(drawer); root.appendChild(proj); root.appendChild(fb.box); root.appendChild(sb.box); root.appendChild(people);
   document.body.appendChild(root);
 
   back.onclick = close;
@@ -159,7 +262,12 @@ function build() {
   plus.onclick = function () { toggleSheet(); };
   form.onsubmit = function (e) { e.preventDefault(); submit(); };
   box.addEventListener("keydown", function (e) {
-    if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); submit(); }
+    if (e.key === "Escape" && cur && (cur.reply || cur.edit)) { e.stopPropagation(); cur.reply = null; cur.edit = null; renderBar(); return; }
+    if (e.key === "ArrowUp" && !box.value && FINE.matches && cur && !cur.edit) {
+      const own = Array.from(cur.msgs.values()).filter(function (x) { return me && x.uid === me.uid && !x.kind; }).sort(function (a, b) { return b.t - a.t; })[0];
+      if (own) { e.preventDefault(); startEdit(own); return; }
+    }
+    if (e.key === "Enter" && !e.isComposing && ((e.ctrlKey || e.metaKey) || (!e.shiftKey && FINE.matches))) { e.preventDefault(); submit(); }
   });
   box.addEventListener("input", function () {
     box.style.height = "auto";
@@ -167,10 +275,23 @@ function build() {
     showSuggest();
   });
   box.addEventListener("click", showSuggest);
+  list.addEventListener("scroll", function () { updateJump(); }, { passive: true });
+  jump.onclick = function () {
+    if (!cur) return;
+    cur.below = 0;
+    try { list.scrollTo({ top: list.scrollHeight, behavior: "smooth" }); } catch (e) { list.scrollTop = list.scrollHeight; }
+    updateJump();
+  };
   box.addEventListener("blur", function () { setTimeout(hideSuggest, 150); });
-  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !root.hidden) { if (!proj.hidden) proj.hidden = true; else if (!drawer.hidden) toggleDrawer(false); else if (!sheet.hidden) toggleSheet(false); else close(); } });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !root.hidden) { if (!sb.box.hidden) closeSwitch(); else if (!fb.box.hidden) closeFind(); else if (!proj.hidden) proj.hidden = true; else if (!drawer.hidden) toggleDrawer(false); else if (!sheet.hidden) toggleSheet(false); else close(); } });
 
-  ui = { suggest: suggest, root: root, title: title, pick: pick, list: list, note: note, box: box, send: send, back: back, plus: plus, sheet: sheet, drawer: drawer, panel: panel, proj: proj, jpanel: jpanel };
+  document.addEventListener("keydown", function (e) {
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && String(e.key).toLowerCase() === "k" && !root.hidden && cur) {
+      e.preventDefault();
+      if (sb.box.hidden) openSwitch(); else closeSwitch();
+    }
+  });
+  ui = { find: fb.box, fpanel: fb.panel, sw: sb.box, spanel: sb.panel, rbar: rbar, rtxt: rtxt, jump: jump, people: people, suggest: suggest, root: root, title: title, pick: pick, list: list, note: note, box: box, send: send, back: back, plus: plus, sheet: sheet, drawer: drawer, panel: panel, proj: proj, jpanel: jpanel };
   return ui;
 }
 
@@ -215,7 +336,7 @@ function renderProjectSheet(focus) {
   panel.scrollTop = keep;
 }
 
-// sharedprojects.js messages (errors, "Code copied") show here while the sheet is open
+// Messages from sharedprojects.js (errors, "Code copied") appear here while the project sheet is open
 function notice(text) {
   if (!ui || ui.proj.hidden) return false;
   const n = ui.jpanel.querySelector(".chat-proj-note");
@@ -242,6 +363,23 @@ function setTitle() {
   ui.title.textContent = "";
   ui.title.appendChild(mk("span", "chat-title-name", cur.p.name));
   ui.title.appendChild(mk("small", "chat-title-sub", n + (n === 1 ? " person" : " people") + " \u203a"));
+  renderPeople();
+}
+
+// People list on the right (wide landscape screens only)
+function renderPeople() {
+  if (!cur || !ui) return;
+  const p = cur.p, box = ui.people;
+  box.textContent = "";
+  box.appendChild(mk("h3", "chat-people-title", "People \u00b7 " + p.members.length));
+  p.members.forEach(function (uid) {
+    const name = (p.names && p.names[uid]) || "Member";
+    const r = mk("div", "chat-person");
+    r.appendChild(avatarFor(uid, name, "chat-ava"));
+    r.appendChild(mk("span", "chat-person-name", me && uid === me.uid ? name + " (you)" : name));
+    if (uid === p.createdBy) r.appendChild(mk("small", "chat-person-tag", "Owner"));
+    box.appendChild(r);
+  });
 }
 
 function threadLabel(tid) {
@@ -275,21 +413,144 @@ function drawerRow(t, u, kind) {
 function fillPicker() {
   const u = unreadFor(cur.p);
   const others = threadsOf(cur.p).some(function (t) { return u.threads.has(t.id) && t.id !== cur.tid; });
-  const isStage = cur.tid && cur.tid !== "general" && cur.tid !== "announcements";
+  const isStage = isStageTid(cur.p, cur.tid);
   ui.pick.textContent = "";
   ui.pick.appendChild(mk("span", "chat-pick-label", (isStage ? "" : "# ") + threadLabel(cur.tid).replace(/^# /, "")));
   ui.pick.appendChild(mk("span", "chat-pick-caret", "\u25be"));
   if (others) ui.pick.appendChild(mk("span", "chat-badge", "\u25cf"));
+  const can = manage(cur.p);
   const panel = ui.panel;
   panel.textContent = "";
   panel.appendChild(mk("div", "chat-drawer-grip"));
   panel.appendChild(mk("h3", "chat-drawer-title", cur.p.name));
+  const jt = mk("button", "chat-jumpto");
+  jt.type = "button";
+  jt.appendChild(mk("span", "", "Jump to\u2026"));
+  jt.appendChild(mk("kbd", "", "Ctrl K"));
+  jt.onclick = openSwitch;
+  panel.appendChild(jt);
   panel.appendChild(mk("p", "chat-drawer-sec", "Channels"));
-  threadsOf(cur.p).filter(function (t) { return t.id === "general" || t.id === "announcements"; })
-    .forEach(function (t) { panel.appendChild(drawerRow(t, u, "channel")); });
+  threadsOf(cur.p).filter(function (t) { return !isStageTid(cur.p, t.id); }).forEach(function (t) {
+    if (!t.custom || !can) { panel.appendChild(drawerRow(t, u, "channel")); return; }
+    const wrap = mk("div", "chat-drawer-wrap");
+    wrap.appendChild(drawerRow(t, u, "channel"));
+    const g = mk("button", "chat-chan-gear", "\u22ef");
+    g.type = "button";
+    g.setAttribute("aria-label", "Options for " + t.label);
+    g.setAttribute("aria-expanded", cur.chMenu === t.id ? "true" : "false");
+    g.onclick = function () { cur.chMenu = cur.chMenu === t.id ? "" : t.id; cur.chNew = false; cur.chErr = ""; fillPicker(); };
+    wrap.appendChild(g);
+    panel.appendChild(wrap);
+    if (cur.chMenu === t.id) panel.appendChild(chanForm(chansOf(cur.p).filter(function (c) { return c.id === t.id; })[0]));
+  });
+  if (can) {
+    if (cur.chNew) panel.appendChild(chanForm(null));
+    else if (chansOf(cur.p).length < MAX_CHANNELS) {
+      const add = mk("button", "chat-drawer-row chat-chan-add");
+      add.type = "button";
+      add.appendChild(mk("span", "chat-hash", "+"));
+      add.appendChild(mk("span", "chat-drawer-name", "New channel"));
+      add.onclick = function () {
+        cur.chNew = true; cur.chMenu = ""; cur.chErr = ""; fillPicker();
+        const i = ui.panel.querySelector(".chat-chan-input"); if (i) i.focus();
+      };
+      panel.appendChild(add);
+    }
+  }
+  if (cur.chErr) panel.appendChild(mk("p", "hint chat-chan-err", cur.chErr));
   if (cur.p.stages.length) {
     panel.appendChild(mk("p", "chat-drawer-sec", "Stages"));
     cur.p.stages.forEach(function (s) { panel.appendChild(drawerRow({ id: s.id, label: "Stage: " + s.name }, u, "stage")); });
+  }
+}
+
+// ---- Channel management (project owner or admin) ----
+function chanSlug(v) { return String(v || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 24); }
+
+function chanForm(c) {
+  const f = mk("form", "chat-chan-form");
+  f.autocomplete = "off";
+  const inp = mk("input", "field chat-chan-input");
+  inp.type = "text"; inp.maxLength = 24;
+  inp.placeholder = "channel-name";
+  inp.value = c ? c.name : "";
+  inp.setAttribute("aria-label", c ? "Channel name" : "New channel name");
+  const row = mk("div", "chat-chan-btns");
+  const ok = mk("button", "chat-chan-ok", c ? "Rename" : "Create");
+  ok.type = "submit";
+  const no = mk("button", "secondary", "Cancel");
+  no.type = "button";
+  no.onclick = function () { cur.chNew = false; cur.chMenu = ""; cur.chErr = ""; fillPicker(); };
+  row.appendChild(ok); row.appendChild(no);
+  if (c) {
+    const del = mk("button", "chat-act danger", "Delete");
+    del.type = "button";
+    del.onclick = function () { deleteChannel(c); };
+    row.appendChild(del);
+  }
+  f.appendChild(inp); f.appendChild(row);
+  f.onsubmit = function (e) { e.preventDefault(); if (c) renameChannel(c, inp.value); else createChannel(inp.value); };
+  return f;
+}
+
+function chanProblem(name, selfId) {
+  if (name.length < 2) return "Use at least 2 letters or numbers.";
+  if (name === "general" || name === "announcements") return "That name is already used.";
+  if (chansOf(cur.p).some(function (c) { return c.name === name && c.id !== selfId; })) return "A channel with that name already exists.";
+  return "";
+}
+
+async function saveChannels(list) {
+  const p = cur.p;
+  try {
+    await updateDoc(doc(db, "sharedProjects", p.id), { channels: list, updatedAt: Date.now() });
+    p.channels = list;
+    return true;
+  } catch (e) {
+    if (cur && cur.p === p) { cur.chErr = "Couldn't save channels. Check your connection, and that your Firebase rules let the project owner edit the project."; fillPicker(); }
+    return false;
+  }
+}
+
+async function createChannel(raw) {
+  const name = chanSlug(raw);
+  const bad = chanProblem(name, "");
+  if (bad) { cur.chErr = bad; fillPicker(); return; }
+  const id = "ch" + Math.random().toString(36).slice(2, 8);
+  if (!(await saveChannels(chansOf(cur.p).concat([{ id: id, name: name }])))) return;
+  toggleDrawer(false);
+  switchTo(id);
+}
+
+async function renameChannel(c, raw) {
+  const name = chanSlug(raw);
+  const bad = chanProblem(name, c.id);
+  if (bad) { cur.chErr = bad; fillPicker(); return; }
+  const list = chansOf(cur.p).map(function (x) { return x.id === c.id ? { id: x.id, name: name } : x; });
+  if (!(await saveChannels(list))) return;
+  cur.chMenu = ""; cur.chErr = "";
+  fillPicker(); setComposer();
+}
+
+async function wipeThread(pid, tid) {
+  try {
+    for (let i = 0; i < 5; i++) {
+      const s = await getDocs(query(collection(db, "sharedProjects", pid, "threads", tid, "messages"), limit(100)));
+      if (s.empty) break;
+      await Promise.all(s.docs.map(function (d) { return deleteDoc(d.ref).catch(function () {}); }));
+      if (s.docs.length < 100) break;
+    }
+  } catch (e) {}
+}
+
+async function deleteChannel(c) {
+  if (!confirm("Delete # " + c.name + " and all its messages? This can't be undone.")) return;
+  const p = cur.p, wasHere = cur.tid === c.id;
+  if (!(await saveChannels(chansOf(p).filter(function (x) { return x.id !== c.id; })))) return;
+  wipeThread(p.id, c.id);
+  if (cur && cur.p === p) {
+    if (wasHere) { toggleDrawer(false); switchTo("general"); }
+    else { cur.chMenu = ""; cur.chErr = ""; fillPicker(); }
   }
 }
 
@@ -378,6 +639,9 @@ function setComposer() {
   ui.box.disabled = !ok; ui.send.disabled = !ok;
   ui.note.hidden = ok;
   if (!ok) ui.note.textContent = "Only admins can post in Announcements.";
+  const nm = threadLabel(cur.tid).replace(/^# /, "");
+  renderBar();
+  ui.box.placeholder = ok ? "Message " + (isStageTid(cur.p, cur.tid) ? nm : "# " + nm) : "Only admins can post here";
 }
 
 function say(text) {
@@ -389,7 +653,7 @@ function say(text) {
 function msgsRef() { return collection(db, "sharedProjects", cur.p.id, "threads", cur.tid, "messages"); }
 
 function dayLabel(t) { return new Date(t).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }); }
-// ---- @ suggestions: people in this project, picked from a list ----
+// ---- @ suggestions: members of this project, chosen from a list ----
 function hideSuggest() { if (ui) ui.suggest.hidden = true; }
 function mentionToken() {
   const upto = ui.box.value.slice(0, ui.box.selectionStart);
@@ -460,7 +724,7 @@ function dueText(v) {
   return new Date(v + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric" });
 }
 
-// Live project card: always shows the project as it is now, so there is nothing to "update".
+// Live project card: always reflects the project's current state, so it never needs refreshing.
 function cardNode(m, mine) {
   const p = cur.p;
   const total = p.stages.length;
@@ -525,12 +789,16 @@ function cardNode(m, mine) {
 function render(stick) {
   const list = ui.list;
   const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 80;
+  const keepTop = list.scrollTop;
   list.textContent = "";
+  cur.newEl = null;
   if (cur.pins.size) {
     const box = mk("div", "chat-pins");
     cur.pins.forEach(function (pin, id) {
       const row = mk("div", "chat-pin");
-      row.appendChild(mk("span", "", "\ud83d\udccc " + (pin.name ? pin.name + ": " : "") + (pin.text.length > 140 ? pin.text.slice(0, 140) + "\u2026" : pin.text)));
+      const ptxt = mk("span", "chat-pin-txt", "\ud83d\udccc " + (pin.name ? pin.name + ": " : "") + (pin.text.length > 140 ? pin.text.slice(0, 140) + "\u2026" : pin.text));
+      ptxt.onclick = function () { jumpTo(id); };
+      row.appendChild(ptxt);
       if (manage(cur.p)) {
         const un = mk("button", "chat-del", "Unpin");
         un.type = "button";
@@ -540,6 +808,15 @@ function render(stick) {
       box.appendChild(row);
     });
     list.appendChild(box);
+  }
+  if (TOUCH.matches && !tipSeen()) {
+    const tip = mk("div", "chat-tip");
+    tip.appendChild(mk("span", "", "Tip: press and hold a message to react, copy, save or delete it."));
+    const ok = mk("button", "secondary", "Got it");
+    ok.type = "button";
+    ok.onclick = function () { try { localStorage.setItem("cadence.chatTip", "1"); } catch (e) {} tip.remove(); };
+    tip.appendChild(ok);
+    list.appendChild(tip);
   }
   if (cur.hasMore) {
     const more = mk("button", "secondary chat-more", "Load older messages");
@@ -556,7 +833,7 @@ function render(stick) {
     if (d !== day) { day = d; prev = null; list.appendChild(mk("div", "chat-day", d)); }
     if (m.kind === "system") {
       prev = null;
-      const isStage = cur.tid !== "general" && cur.tid !== "announcements";
+      const isStage = isStageTid(cur.p, cur.tid);
       if (!isStage) { list.appendChild(mk("div", "chat-system", m.text)); return; }
       const st = /\bto (To do|In progress|Review|Needs changes|Done)$/.exec(m.text);
       const sb = mk("button", "chat-system chat-system-btn");
@@ -577,6 +854,12 @@ function render(stick) {
       list.appendChild(cw);
       return;
     }
+    if (cur.seenAt && !cur.newEl && m.t > cur.seenAt && !(me && m.uid === me.uid)) {
+      const nd = mk("div", "chat-new");
+      nd.appendChild(mk("span", "", "New messages"));
+      list.appendChild(nd);
+      cur.newEl = nd; prev = null;
+    }
     const next = items[i + 1];
     const joins = function (x, y) { return x && y && y.kind !== "system" && y.kind !== "card" && x.uid === y.uid && dayLabel(x.t) === dayLabel(y.t) && Math.abs(y.t - x.t) < 5 * 60 * 1000; };
     const cont = joins(prev, m);
@@ -585,8 +868,13 @@ function render(stick) {
     const mine = me && m.uid === me.uid;
     const tagged = me && Array.isArray(m.mentions) && m.mentions.indexOf(me.uid) >= 0;
     const wrap = mk("div", "chat-row" + (mine ? " chat-row-mine" : "") + (cont ? " chat-cont" : ""));
-    if (lastOfGroup) wrap.appendChild(avatarFor(m.uid, m.name, "chat-ava"));
-    else wrap.appendChild(mk("span", "chat-ava-gap"));
+    // Two avatar slots: the bubble layout (phones) uses the lower one, the flat layout (wide screens) the upper one
+    const slotB = mk("span", "chat-slot chat-slot-b");
+    if (lastOfGroup) slotB.appendChild(avatarFor(m.uid, m.name, "chat-ava"));
+    const slotT = mk("span", "chat-slot chat-slot-t");
+    if (!cont) slotT.appendChild(avatarFor(m.uid, m.name, "chat-ava"));
+    wrap.appendChild(slotB); wrap.appendChild(slotT);
+    wrap.dataset.mid = m.id;
     const row = mk("div", "chat-msg" + (mine ? " chat-mine" : "") + (tagged || (m.everyone && !mine) ? " chat-tagged" : ""));
     if (!cont) {
       const meta = mk("div", "chat-meta");
@@ -606,28 +894,295 @@ function render(stick) {
       row.appendChild(dots);
     }
     row.addEventListener("contextmenu", function (e) { e.preventDefault(); cur.menu = m.id; render(false); });
-    row.appendChild(bodyNode(m));
-    if (cont) row.classList.add("chat-msg-cont");
+    if (m.replyTo) row.appendChild(quoteNode(m.replyTo));
+    const body = bodyNode(m);
+    if (m.edited) body.appendChild(mk("small", "chat-edited", " (edited)"));
+    row.appendChild(body);
+    if (m.pending) { row.classList.add("chat-pending"); row.appendChild(mk("small", "chat-sending", "Sending\u2026")); }
+    if (cont) { row.classList.add("chat-msg-cont"); row.appendChild(mk("small", "chat-time-cont", timeLabel(m.t))); }
     row.appendChild(reactionRow(m));
+    row.addEventListener("click", function (e) { if (!e.target.closest("a,button")) row.classList.toggle("show-time"); });
+    pressToOpen(row, m);
     if (open) {
       const bar = mk("div", "chat-actions");
       const act = function (label, fn, danger) {
         const x = mk("button", "chat-act" + (danger ? " danger" : ""), label);
         x.type = "button";
-        x.onclick = function () { cur.menu = ""; fn(); };
+        x.onclick = function () { cur.menu = ""; render(false); fn(); };
         bar.appendChild(x);
       };
-      act("React", function () { cur.picker = m.id; render(false); });
+      REACTIONS.forEach(function (r) {
+        const who = Array.isArray(m.reactions[r[0]]) ? m.reactions[r[0]] : [];
+        const x = mk("button", "chat-act chat-act-rx" + (me && who.indexOf(me.uid) >= 0 ? " on" : ""), r[1]);
+        x.type = "button";
+        x.setAttribute("aria-label", "React " + r[0]);
+        x.onclick = function () { cur.menu = ""; react(m, r[0]); };
+        bar.appendChild(x);
+      });
+      if (canPost()) act("Reply", function () { startReply(m); });
+      if (mine && !m.kind) act("Edit", function () { startEdit(m); });
       act("Copy", function () { if (navigator.clipboard) navigator.clipboard.writeText(m.text).catch(function () {}); });
       act("Save", function () { say(addSaved(m.text, cur.p.name + " \u00b7 " + threadLabel(cur.tid), cur.p.id) ? "Saved to your notes." : "Couldn't save. This browser may be blocking storage."); });
       if (canPin) act(cur.pins.has(m.id) ? "Unpin" : "Pin", function () { setPin(m.id, !cur.pins.has(m.id)); });
       if (canDel) act("Delete", function () { removeMsg(m.id); }, true);
+      act("Close", function () {});
       row.appendChild(bar);
     }
     wrap.appendChild(row);
     list.appendChild(wrap);
   });
   if (stick || nearBottom) list.scrollTop = list.scrollHeight;
+  else list.scrollTop = keepTop;
+  updateJump();
+}
+
+// Bursts of live updates (reactions, edits) are batched and drawn once per frame
+let rq = 0;
+function renderSoon() {
+  if (rq) return;
+  rq = requestAnimationFrame(function () { rq = 0; if (cur && ui && !ui.root.hidden) render(false); });
+}
+
+function tipSeen() { try { return localStorage.getItem("cadence.chatTip") === "1"; } catch (e) { return true; } }
+
+function cleanReply(r) {
+  return r && typeof r === "object" && typeof r.id === "string"
+    ? { id: r.id.slice(0, 40), name: String(r.name || "").slice(0, 30), text: String(r.text || "").slice(0, 120) } : null;
+}
+function snip(t, n) { t = String(t || "").replace(/\s+/g, " ").trim(); return t.length > n ? t.slice(0, n - 1) + "\u2026" : t; }
+
+function renderBar() {
+  if (!ui || !cur) return;
+  const r = cur.reply, e = cur.edit;
+  ui.rbar.hidden = !(r || e);
+  ui.rtxt.textContent = "";
+  if (e) ui.rtxt.appendChild(mk("strong", "", "Editing message"));
+  else if (r) { ui.rtxt.appendChild(mk("strong", "", "Replying to " + (r.name || "Member"))); ui.rtxt.appendChild(mk("small", "", r.text)); }
+  if (!e && ui.box.dataset.editing) { delete ui.box.dataset.editing; ui.box.value = ""; ui.box.style.height = "auto"; }
+}
+function startReply(m) {
+  if (!cur || !canPost()) return;
+  cur.edit = null;
+  cur.reply = { id: m.id, name: m.name || "Member", text: snip(m.text, 80) };
+  renderBar();
+  ui.box.focus();
+}
+function startEdit(m) {
+  if (!cur) return;
+  cur.reply = null;
+  cur.edit = { id: m.id };
+  ui.box.dataset.editing = "1";
+  ui.box.value = m.text;
+  ui.box.dispatchEvent(new Event("input"));
+  renderBar();
+  ui.box.focus();
+}
+function quoteNode(r) {
+  const q = mk("button", "chat-quote");
+  q.type = "button";
+  q.appendChild(mk("strong", "", r.name || "Member"));
+  q.appendChild(mk("span", "", r.text));
+  q.onclick = function (e) { e.stopPropagation(); jumpTo(r.id); };
+  return q;
+}
+function jumpTo(id) {
+  const el = ui.list.querySelector('[data-mid="' + String(id).replace(/[^A-Za-z0-9_-]/g, "") + '"]');
+  if (!el) { say("That message is further back. Load older messages to see it."); return; }
+  try { el.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) { el.scrollIntoView(); }
+  el.classList.add("chat-flash");
+  setTimeout(function () { el.classList.remove("chat-flash"); }, 1600);
+}
+
+// Touch: press and hold opens the message actions, swipe right to reply
+function pressToOpen(el, m) {
+  let t = null, x = 0, y = 0, dx = 0, drag = false;
+  const rowEl = function () { return el.parentNode || el; };
+  const stop = function () { if (t) { clearTimeout(t); t = null; } };
+  const reset = function () { const r = rowEl(); r.style.transition = "transform 0.15s"; r.style.transform = ""; drag = false; dx = 0; };
+  el.addEventListener("pointerdown", function (e) {
+    if (e.pointerType !== "touch" || e.target.closest("a,button")) return;
+    x = e.clientX; y = e.clientY; dx = 0; drag = false; stop();
+    rowEl().style.transition = "none";
+    t = setTimeout(function () {
+      t = null;
+      if (!cur) return;
+      cur.menu = m.id; cur.picker = "";
+      try { if (navigator.vibrate) navigator.vibrate(10); } catch (err) {}
+      render(false);
+    }, 450);
+  });
+  el.addEventListener("pointermove", function (e) {
+    if (e.pointerType !== "touch") return;
+    const mx = e.clientX - x, my = e.clientY - y;
+    if (!drag && t && (Math.abs(my) > 10 || Math.abs(mx) > 8)) stop();
+    if (Math.abs(my) < 24 && mx > 12 && (drag || mx > Math.abs(my) * 1.5)) {
+      drag = true; dx = Math.min(mx, 72);
+      rowEl().style.transform = "translateX(" + dx + "px)";
+    }
+  });
+  el.addEventListener("pointerup", function () {
+    stop();
+    const go = drag && dx >= 56;
+    reset();
+    if (go && cur && canPost()) { try { if (navigator.vibrate) navigator.vibrate(10); } catch (err) {} startReply(m); }
+  });
+  ["pointercancel", "pointerleave"].forEach(function (ev) { el.addEventListener(ev, function () { stop(); if (drag) reset(); }); });
+}
+
+// ---- Find: search the loaded messages in this channel, plus a list of pinned messages ----
+function openFind(mode) {
+  if (!cur) return;
+  toggleDrawer(false); toggleSheet(false);
+  cur.findMode = mode || "search";
+  ui.find.hidden = false;
+  buildFind();
+}
+function closeFind() { if (ui) ui.find.hidden = true; }
+
+function buildFind() {
+  const panel = ui.fpanel;
+  panel.textContent = "";
+  panel.appendChild(mk("div", "chat-drawer-grip"));
+  const head = mk("div", "chat-proj-head");
+  head.appendChild(mk("h3", "chat-drawer-title", "Find in " + threadLabel(cur.tid)));
+  const done = mk("button", "secondary chat-proj-close", "Done");
+  done.type = "button"; done.onclick = closeFind;
+  head.appendChild(done);
+  panel.appendChild(head);
+  const tabs = mk("div", "chat-find-tabs");
+  [["search", "Search"], ["pins", "Pinned (" + cur.pins.size + ")"]].forEach(function (t) {
+    const b = mk("button", "chat-find-tab" + (cur.findMode === t[0] ? " on" : ""), t[1]);
+    b.type = "button";
+    b.setAttribute("aria-pressed", cur.findMode === t[0] ? "true" : "false");
+    b.onclick = function () { cur.findMode = t[0]; buildFind(); };
+    tabs.appendChild(b);
+  });
+  panel.appendChild(tabs);
+  const res = mk("div", "chat-find-res");
+  if (cur.findMode === "search") {
+    const inp = mk("input", "field chat-find-input");
+    inp.type = "search"; inp.maxLength = 60; inp.value = fq;
+    inp.placeholder = "Search this channel";
+    inp.setAttribute("aria-label", "Search messages");
+    inp.oninput = function () { fq = inp.value; fillFind(res); };
+    panel.appendChild(inp);
+    setTimeout(function () { inp.focus(); }, 30);
+  }
+  panel.appendChild(res);
+  fillFind(res);
+}
+
+function findRow(id, name, t, text, q) {
+  const b = mk("button", "chat-find-row");
+  b.type = "button";
+  const top = mk("span", "chat-find-top");
+  top.appendChild(mk("strong", "", name || "Member"));
+  if (t) top.appendChild(mk("small", "", dayLabel(t) + " \u00b7 " + timeLabel(t)));
+  b.appendChild(top);
+  const sn = mk("span", "chat-find-snip");
+  const i = q ? text.toLowerCase().indexOf(q) : -1;
+  const start = i > 40 ? i - 30 : 0;
+  const seg = (start ? "\u2026" : "") + text.slice(start, start + 160);
+  if (i >= 0) {
+    const j = i - start + (start ? 1 : 0);
+    sn.appendChild(document.createTextNode(seg.slice(0, j)));
+    sn.appendChild(mk("mark", "", seg.slice(j, j + q.length)));
+    sn.appendChild(document.createTextNode(seg.slice(j + q.length)));
+  } else sn.textContent = seg;
+  b.appendChild(sn);
+  b.onclick = function () { closeFind(); jumpTo(id); };
+  return b;
+}
+
+function fillFind(res) {
+  res.textContent = "";
+  if (cur.findMode === "pins") {
+    if (!cur.pins.size) { res.appendChild(mk("p", "hint", "No pinned messages here yet." + (manage(cur.p) ? " Open a message's menu and choose Pin." : ""))); return; }
+    cur.pins.forEach(function (pin, id) { res.appendChild(findRow(id, pin.name, 0, pin.text, "")); });
+    return;
+  }
+  const q = fq.trim().toLowerCase();
+  const all = Array.from(cur.msgs.values()).filter(function (m) { return !m.kind; });
+  if (q.length < 2) res.appendChild(mk("p", "hint", "Type at least 2 characters. This searches the " + all.length + " messages loaded in this channel."));
+  else {
+    const hits = all.filter(function (m) { return m.text.toLowerCase().indexOf(q) >= 0 || (m.name || "").toLowerCase().indexOf(q) >= 0; })
+      .sort(function (a, b) { return b.t - a.t; });
+    if (!hits.length) res.appendChild(mk("p", "hint", "No matches in the loaded messages."));
+    hits.slice(0, 40).forEach(function (m) { res.appendChild(findRow(m.id, m.name, m.t, m.text, q)); });
+    if (hits.length > 40) res.appendChild(mk("p", "hint", "Showing the 40 newest of " + hits.length + " matches."));
+  }
+  if (cur.hasMore) {
+    const more = mk("button", "secondary chat-find-more", "Search older messages");
+    more.type = "button";
+    more.onclick = async function () {
+      more.disabled = true; more.textContent = "Loading\u2026";
+      await loadOlder();
+      if (cur && !ui.find.hidden) fillFind(res);
+    };
+    res.appendChild(more);
+  }
+}
+
+// ---- Ctrl+K: jump to a channel or stage by name ----
+function closeSwitch() { if (ui) ui.sw.hidden = true; }
+function openSwitch() {
+  if (!cur) return;
+  closeFind(); toggleSheet(false);
+  ui.sw.hidden = false;
+  const panel = ui.spanel;
+  panel.textContent = "";
+  panel.appendChild(mk("div", "chat-drawer-grip"));
+  const inp = mk("input", "field chat-find-input");
+  inp.type = "search"; inp.placeholder = "Jump to a channel or stage"; inp.maxLength = 40;
+  inp.setAttribute("aria-label", "Jump to a channel or stage");
+  const list = mk("div", "chat-switch-list");
+  panel.appendChild(inp); panel.appendChild(list);
+  const u = unreadFor(cur.p);
+  let sel = 0, items = [];
+  const go = function (id) { closeSwitch(); if (id !== cur.tid) switchTo(id); };
+  const draw = function () {
+    list.textContent = "";
+    const q = inp.value.trim().toLowerCase();
+    items = threadsOf(cur.p).filter(function (t) { return !q || t.label.toLowerCase().indexOf(q) >= 0; });
+    if (sel >= items.length) sel = Math.max(0, items.length - 1);
+    items.forEach(function (t, i) {
+      const b = mk("button", "chat-switch-row" + (i === sel ? " on" : ""));
+      b.type = "button";
+      b.appendChild(mk("span", "chat-hash", isStageTid(cur.p, t.id) ? "\u25c6" : "#"));
+      b.appendChild(mk("span", "chat-drawer-name", t.label.replace(/^(# |Stage: )/, "")));
+      if (u.threads.has(t.id) && t.id !== cur.tid) b.appendChild(mk("span", "chat-badge", "\u25cf"));
+      b.onclick = function () { go(t.id); };
+      list.appendChild(b);
+    });
+    if (!items.length) list.appendChild(mk("p", "hint", "No match."));
+    const on = list.querySelector(".on");
+    if (on) on.scrollIntoView({ block: "nearest" });
+  };
+  inp.oninput = function () { sel = 0; draw(); };
+  inp.onkeydown = function (e) {
+    if (e.key === "ArrowDown") { e.preventDefault(); if (items.length) { sel = (sel + 1) % items.length; draw(); } }
+    else if (e.key === "ArrowUp") { e.preventDefault(); if (items.length) { sel = (sel - 1 + items.length) % items.length; draw(); } }
+    else if (e.key === "Enter") { e.preventDefault(); if (items[sel]) go(items[sel].id); }
+    else if (e.key === "Escape") { e.stopPropagation(); closeSwitch(); }
+  };
+  draw();
+  setTimeout(function () { inp.focus(); }, 30);
+}
+
+// "Jump to latest" pill: appears when scrolled up and counts the messages that arrive meanwhile
+function updateJump() {
+  if (!ui || !cur) return;
+  const l = ui.list;
+  const far = l.scrollHeight - l.scrollTop - l.clientHeight;
+  if (far < 120) cur.below = 0;
+  ui.jump.hidden = !(far > 240 || cur.below > 0);
+  ui.jump.textContent = cur.below > 0 ? "\u2193 " + cur.below + " new" : "\u2193 Latest";
+}
+
+function focusNew() {
+  if (!cur || !cur.newEl) return;
+  const l = ui.list;
+  l.scrollTop = Math.max(0, cur.newEl.getBoundingClientRect().top - l.getBoundingClientRect().top + l.scrollTop - 48);
 }
 
 function reactionRow(m) {
@@ -687,50 +1242,72 @@ function ingest(docSnap) {
   const d = docSnap.data({ serverTimestamps: "estimate" });
   cur.msgs.set(docSnap.id, {
     id: docSnap.id, uid: String(d.uid || ""), name: String(d.name || ""), text: String(d.text || ""),
-    kind: d.kind || "", everyone: d.everyone === true, reactions: d.reactions && typeof d.reactions === "object" ? d.reactions : {}, pinned: !!d.pinned, mentions: Array.isArray(d.mentions) ? d.mentions : [], t: ms(d.createdAt) || Date.now()
+    kind: d.kind || "", everyone: d.everyone === true, reactions: d.reactions && typeof d.reactions === "object" ? d.reactions : {}, pinned: !!d.pinned, mentions: Array.isArray(d.mentions) ? d.mentions : [], edited: d.edited === true, pending: docSnap.metadata.hasPendingWrites === true, replyTo: cleanReply(d.replyTo), t: ms(d.createdAt) || Date.now()
   });
 }
 
+function tOf(docSnap) { return ms(docSnap.data({ serverTimestamps: "estimate" }).createdAt); }
+function syncPin(docSnap) {
+  const d = docSnap.data();
+  if (d.pinned === true) cur.pins.set(docSnap.id, { name: String(d.name || ""), text: String(d.text || "") });
+  else cur.pins.delete(docSnap.id);
+}
+
 async function switchTo(tid) {
+  fq = "";
   if (cur && cur.unsub) { cur.unsub(); cur.unsub = null; }
   const p = cur.p;
-  cur = { p: p, tid: tid, msgs: new Map(), pins: new Map(), picker: "", menu: "", unsub: null, oldest: null, hasMore: false };
+  cur = { p: p, tid: tid, msgs: new Map(), pins: new Map(), picker: "", menu: "", unsub: null, oldest: null, hasMore: false, seenAt: (readSeen()[p.id] || {})[tid] || 0, below: 0, newEl: null, loadedAt: 0 };
   fillPicker(); setComposer();
   ui.list.textContent = "";
   ui.list.appendChild(mk("p", "hint chat-empty", "Loading\u2026"));
   const mine = cur;
-  let startAt = Timestamp.now();
-  try {
-    const snap = await getDocs(query(msgsRef(), orderBy("createdAt", "desc"), limit(PAGE)));
+  let ready = false;
+  // One live listener on the newest messages, covering new messages, edits, reactions, pins and deletes.
+  cur.unsub = onSnapshot(query(msgsRef(), orderBy("createdAt", "desc"), limit(PAGE)), { includeMetadataChanges: true }, function (snap) {
     if (cur !== mine) return;
-    snap.docs.forEach(ingest);
-    if (snap.docs.length) {
-      cur.oldest = snap.docs[snap.docs.length - 1];
-      const newest = snap.docs[0].data().createdAt;
-      if (newest && typeof newest.toMillis === "function") startAt = newest;
+    if (!ready) {
+      ready = true;
+      snap.docs.forEach(function (d) { ingest(d); syncPin(d); });
+      if (snap.docs.length) cur.oldest = snap.docs[snap.docs.length - 1];
+      cur.hasMore = snap.docs.length === PAGE;
+      cur.loadedAt = snap.docs.reduce(function (a, d) { return Math.max(a, tOf(d)); }, 0);
+      markSeen(p.id, tid); fillPicker();
+      render(true);
+      focusNew(); updateJump();
+      // Pinned messages older than the live window
+      getDocs(query(msgsRef(), where("pinned", "==", true), limit(3))).then(function (ps) {
+        if (cur !== mine) return;
+        ps.docs.forEach(function (d) { if (cur.pins.size < 3) syncPin(d); });
+        render(false);
+      }).catch(function () {});
+      return;
     }
-    cur.hasMore = snap.docs.length === PAGE;
-  } catch (e) {
-    if (cur !== mine) return;
-    ui.list.textContent = "";
-    ui.list.appendChild(mk("p", "hint chat-empty", "Couldn't load this chat. Check your connection, and that the chat rules are published in Firebase."));
-    return;
-  }
-  try {
-    const ps = await getDocs(query(msgsRef(), where("pinned", "==", true), limit(3)));
-    if (cur !== mine) return;
-    ps.docs.forEach(function (d) { cur.pins.set(d.id, { name: String(d.data().name || ""), text: String(d.data().text || "") }); });
-  } catch (e) {}
-  markSeen(p.id, tid); fillPicker();
-  render(true);
-  cur.unsub = onSnapshot(query(msgsRef(), where("createdAt", ">", startAt), orderBy("createdAt", "asc")), function (snap) {
-    if (cur !== mine) return;
-    snap.docChanges().forEach(function (c) {
-      if (c.type === "removed") cur.msgs.delete(c.doc.id); else ingest(c.doc);
+    if (!cur.oldest && snap.docs.length) { cur.oldest = snap.docs[snap.docs.length - 1]; cur.hasMore = snap.docs.length === PAGE; }
+    const l = ui.list;
+    const near = l.scrollHeight - l.scrollTop - l.clientHeight < 80;
+    const full = snap.docs.length >= PAGE;
+    const oldestT = snap.docs.length ? tOf(snap.docs[snap.docs.length - 1]) : 0;
+    snap.docChanges({ includeMetadataChanges: true }).forEach(function (c) {
+      const id = c.doc.id;
+      if (c.type === "removed") {
+        // A message that slides out of the live window stays visible. Only a real delete removes it.
+        if (full && tOf(c.doc) < oldestT) return;
+        cur.msgs.delete(id); cur.pins.delete(id);
+        return;
+      }
+      if (c.type === "added" && !cur.msgs.has(id) && !near && !c.doc.metadata.hasPendingWrites && c.doc.data().uid !== (me && me.uid) && tOf(c.doc) > cur.loadedAt) cur.below++;
+      ingest(c.doc); syncPin(c.doc);
     });
     markSeen(p.id, tid);
-    render(false);
-  }, function () { say("Lost connection to the chat. Close it and open it again."); });
+    renderSoon();
+  }, function () {
+    if (cur !== mine) return;
+    if (!ready) {
+      ui.list.textContent = "";
+      ui.list.appendChild(mk("p", "hint chat-empty", "Couldn't load this chat. Check your connection, and that the chat rules are published in Firebase."));
+    } else say("Lost connection to the chat. Close it and open it again.");
+  });
 }
 
 async function loadOlder() {
@@ -767,7 +1344,7 @@ async function resolveMentions(p, text) {
     if (handles.length >= 5) break;
   }
   const uids = [];
-  // People picked from the @ list (their name must still be in the text)
+  // People picked from the @ list (their name must still appear in the text)
   picked.forEach(function (name, uid) {
     if (text.toLowerCase().indexOf("@" + name.toLowerCase()) >= 0 && p.members.indexOf(uid) >= 0) uids.push(uid);
   });
@@ -785,7 +1362,7 @@ async function resolveMentions(p, text) {
 
 function myName(p) { return String((p.names && p.names[me.uid]) || me.displayName || "Admin").slice(0, 30); }
 
-// Mark the thread as having new activity so other members see an unread dot
+// Flag the thread as having new activity so other members see an unread dot
 async function bump(p, tid, mentionUids, everyone) {
   const fields = {};
   fields["chatAt." + tid] = Date.now();
@@ -802,18 +1379,39 @@ async function submit() {
   lastSend = Date.now();
   ui.send.disabled = true;
   const p = cur.p, tid = cur.tid, mine = cur;
+  if (cur.edit) {
+    const eid = cur.edit.id;
+    try {
+      await updateDoc(doc(db, "sharedProjects", p.id, "threads", tid, "messages", eid), { text: text, edited: true });
+      if (cur === mine) {
+        const em = cur.msgs.get(eid);
+        if (em) { em.text = text; em.edited = true; }
+        cur.edit = null; ui.box.value = ""; ui.box.style.height = "auto";
+        renderBar(); render(false); say("");
+      }
+    } catch (e) { if (cur === mine) say("Couldn't save the edit. Make sure the updated chat rules are published in Firebase."); }
+    if (cur === mine) setComposer();
+    return;
+  }
   try {
     const mentions = await resolveMentions(p, text);
     const data = { uid: me.uid, name: myName(p), text: text, createdAt: serverTimestamp() };
     if (mentions.length) data.mentions = mentions.slice(0, 10);
     const everyone = manage(p) && /(^|\s)@everyone\b/i.test(text);
     if (everyone) data.everyone = true;
-    await addDoc(collection(db, "sharedProjects", p.id, "threads", tid, "messages"), data);
-    ui.box.value = ""; ui.box.style.height = "auto";
+    if (cur === mine && cur.reply) data.replyTo = { id: String(cur.reply.id).slice(0, 40), name: String(cur.reply.name || "").slice(0, 30), text: String(cur.reply.text || "").slice(0, 120) };
+    // Optimistic send: the message appears at once as "Sending…" and the box clears.
+    // If the send fails, the text goes back into the box.
+    const sending = addDoc(collection(db, "sharedProjects", p.id, "threads", tid, "messages"), data);
+    if (cur === mine) { cur.reply = null; renderBar(); ui.box.value = ""; ui.box.style.height = "auto"; }
     picked.clear(); hideSuggest();
     say("");
     markSeen(p.id, tid);
-    bump(p, tid, mentions, everyone);
+    sending.then(function () { bump(p, tid, mentions, everyone); }).catch(function () {
+      if (cur !== mine) return;
+      if (!ui.box.value) { ui.box.value = text; ui.box.dispatchEvent(new Event("input")); }
+      say("Couldn't send. Your message is back in the box. Check your connection, then tap send to try again.");
+    });
   } catch (e) {
     if (cur === mine) say("Couldn't send. Check your connection, and that the chat rules are published in Firebase.");
   }
@@ -835,10 +1433,11 @@ function openChat(p, tid) {
 }
 
 function close() {
+  flushSeen();
   picked.clear();
   if (cur && cur.unsub) cur.unsub();
   cur = null;
-  if (ui) { ui.root.hidden = true; ui.drawer.hidden = true; ui.proj.hidden = true; ui.sheet.hidden = true; }
+  if (ui) { ui.find.hidden = true; ui.sw.hidden = true; ui.jump.hidden = true; ui.root.hidden = true; ui.drawer.hidden = true; ui.proj.hidden = true; ui.sheet.hidden = true; }
   document.body.classList.remove("chat-open");
   if (sp() && sp().rerender) sp().rerender();
 }
@@ -853,7 +1452,7 @@ async function log(p, tid, text) {
   } catch (e) {}
 }
 
-// ---- buttons used by sharedprojects.js ----
+// ---- Buttons used by sharedprojects.js ----
 function button(p) {
   const u = unreadFor(p);
   const b = mk("button", "secondary chat-open-btn");
@@ -872,7 +1471,7 @@ function stageButton(p, stage) {
   return b;
 }
 
-// ---- Saved: a private scratch space (Slack's "message yourself"), kept on this device ----
+// ---- Saved: a private notes space for each person, kept on this device ----
 const SAVED_MAX = 100;
 let sv = null;
 function savedKey() { return "cadence.saved." + (me ? me.uid : "anon"); }
@@ -991,7 +1590,7 @@ function closeSaved() {
   if (sp() && sp().rerender) sp().rerender();
 }
 
-// ---- Home inbox: every project chat in one list, Slack style ----
+// ---- Home inbox: every project chat in one list ----
 let inboxFilter = "";
 function ago(t) {
   if (!t) return "";
@@ -1028,7 +1627,7 @@ function setTabBadge(n, mention) {
   tab.setAttribute("aria-label", "Projects, " + n + (n === 1 ? " chat has" : " chats have") + " new messages" + (mention ? ", you were mentioned" : ""));
 }
 
-// The global strip is gone: the same four counters now live inside each project card.
+// The four counters sit inside each project card rather than in a global strip.
 function renderInbox(box, projects) {
   if (box) { box.textContent = ""; box.hidden = true; }
   if (!me) { setTabBadge(0, false); return; }
@@ -1036,7 +1635,7 @@ function renderInbox(box, projects) {
   setTabBadge(rows.filter(function (u) { return u.threads.size; }).length, rows.some(function (u) { return u.mention; }));
 }
 
-// Four small counters for one project: Unread, Mentions, Saved, My tasks (taskStageIds = my open stages here)
+// Four counters for one project: Unread, Mentions, Saved and My tasks (taskStageIds = my open stages here)
 function tiles(p, taskStageIds) {
   const wrap = mk("div", "chat-tiles");
   if (!me) { wrap.hidden = true; return wrap; }
@@ -1070,6 +1669,15 @@ function openProject(p, stageId) {
 
 window.CadenceChat = { openProject: openProject, notice: notice, close: close, button: button, stageButton: stageButton, open: openChat, log: log, unreadFor: unreadFor, inbox: renderInbox, tiles: tiles };
 
+document.addEventListener("visibilitychange", function () {
+  if (document.visibilityState === "hidden") { flushSeen(); return; }
+  if (!me || Date.now() - lastSeenPull < 60000) return;
+  pullSeen().then(function (changed) {
+    if (changed && sp() && sp().rerender) sp().rerender();
+    if (changed && cur && ui && !ui.root.hidden) fillPicker();
+  });
+});
+
 let lastPull = Date.now();
 document.addEventListener("visibilitychange", function () {
   if (document.visibilityState !== "visible" || !me || (ui && !ui.root.hidden)) return;
@@ -1081,8 +1689,10 @@ document.addEventListener("visibilitychange", function () {
 onAuthStateChanged(getAuth(), async function (user) {
   me = user || null;
   admin = false;
+  seenSyncOff = false; seenDirty = {};
   if (cur) close();
   if (sv) sv.root.hidden = true;
   if (me) { try { admin = (await getDoc(doc(db, "admins", me.uid))).exists(); } catch (e) {} }
+  if (me) await pullSeen();
   if (sp() && sp().rerender) sp().rerender();
 });

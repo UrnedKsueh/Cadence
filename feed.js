@@ -1,4 +1,4 @@
-// Community feed: signed-in students post finished pieces, like and comment. Runs after cloud.js.
+// Community feed: signed-in students post finished work, like and comment. Loads after cloud.js.
 import { getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, setDoc, deleteDoc, collection, query, orderBy, limit, getDocs, addDoc, updateDoc, arrayUnion, arrayRemove, serverTimestamp }
@@ -74,7 +74,7 @@ if (!S.id) {
       const id = posted()[showId];
       if (!user || !id || !confirm("Remove this piece from the Community feed?")) return;
       try {
-        // If an admin already removed the post, just clear the button
+        // An admin may have removed the post already, so just clear the button
         const stillThere = (await getDoc(doc(db, "posts", id))).exists();
         if (stillThere) await deleteDoc(doc(db, "posts", id));
         const map = posted(); delete map[showId]; savePosted(map);
@@ -352,7 +352,7 @@ if (!S.id) {
   // Post box. Uses the same fields as Showcase posts, so the published rules accept it unchanged.
   const form = document.querySelector(".composer");
   const q = function (c) { return form.querySelector(c); };
-  // Photo: one image per post. It is shrunk on the phone (about 1024px, around 150 KB) and stored inside the post.
+  // Photo: one image per post, shrunk on the phone (about 1024px, around 150 KB) and stored inside the post.
   const MAX_IMG_CHARS = 200000;
   let photo = "";
   function shrink(file) {
@@ -430,7 +430,7 @@ if (!S.id) {
       if (!url) { msg.textContent = "That link doesn't look right."; return; }
     }
     if (!text && !url && !photo) { msg.textContent = "Write something, add a link or add a photo first."; return; }
-    // No title box: the title is made from the first line of the message (or the link's site).
+    // No title box: the title comes from the first line of the message (or the link's site).
     let title = "", note = text;
     if (text) {
       const first = text.split(/\r?\n/)[0].trim();

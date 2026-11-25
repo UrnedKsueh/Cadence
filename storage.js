@@ -2,15 +2,15 @@
 
 // ===== storage.js =====
 // Every read and write of saved data goes through this file.
-// Today it saves to the browser (localStorage). Later, a cloud backend can be
-// plugged in with Storage.setCloud() without touching the rest of the app.
+// Data is saved in the browser (localStorage). cloud.js adds the cloud copy through
+// Storage.setCloud(), so the rest of the app never talks to the backend directly.
 
 const Storage = (function () {
   const PREFIX = "cadence:";
   // Old Render Room data lived under bare keys; it is copied over once, never deleted.
   const LEGACY_KEYS = ["deadlines", "projects", "showcase"];
 
-  // Per-student limits. They apply to cloud saves (see firestore.rules).
+  // Per-student limits. They apply to cloud saves (see firestore-rules.txt).
   const LIMITS = { projects: 10, shotsPerProject: 100, showcase: 20, deadlines: 200 };
 
   let cloud = null;       // { save(snapshot) } set once login exists

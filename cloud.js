@@ -1,4 +1,4 @@
-// Google sign-in and cloud backup (Firebase Spark plan). Local saving still works without it.
+// Google sign-in and cloud backup (Firebase Spark plan). Saving on the device keeps working without it.
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, GoogleAuthProvider, signInWithPopup, onAuthStateChanged, signOut }
   from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
@@ -131,7 +131,7 @@ onAuthStateChanged(auth, function (user) {
 
 
 // ===== Announcements =====
-// Everyone signed in reads them; only accounts listed in the "admins" collection can post.
+// Everyone signed in can read them. Only accounts listed in the "admins" collection can post.
 let isAdmin = false;
 let announcements = [];
 let lastFetch = 0;
@@ -225,7 +225,7 @@ async function loadAnnouncements(force) {
   try {
     const snap = await getDocs(query(collection(db, "announcements"), orderBy("createdAt", "desc"), limit(10)));
     announcements = snap.docs.map(function (d) { return Object.assign({ id: d.id }, d.data()); });
-  } catch (error) { return; } // offline or rules not published yet: just show nothing
+  } catch (error) { return; } // Offline, or the rules aren't published yet: show nothing
   renderAnnouncements();
   announceChanged();
 }
@@ -251,7 +251,7 @@ $("announceForm").onsubmit = function (event) {
     $("announceMsg").textContent = "Posted. Students will see it on their Home tab.";
     return loadAnnouncements(true);
   }).catch(function () {
-    $("announceMsg").textContent = "Couldn't post. Make sure the latest firestore.rules are published and your account is in the admins collection.";
+    $("announceMsg").textContent = "Couldn't post. Make sure the latest Firestore rules are published and your account is in the admins collection.";
   }).then(function () { btn.disabled = false; });
 };
 
