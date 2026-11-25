@@ -1672,3 +1672,87 @@ strong.tap:hover { text-decoration: underline; }
 .chat-project-panel .chat-card-bar { margin: 8px 8px 0; }
 .chat-proj-note { margin: 8px; }
 .chat-project-panel .sp-body { margin-top: 10px; padding: 0 4px; }
+
+
+/* Shared projects: once a project exists, the "New shared project" button
+   moves up into the top-right of the section header. The form still opens
+   in the normal flow below the header text. */
+#sharedSection.has-projects { position: relative; }
+#sharedSection.has-projects #sharedTitle { padding-right: 150px; min-height: 36px; display: flex; align-items: center; }
+#sharedSection.has-projects #sharedAdd { margin: 0; }
+#sharedSection.has-projects #sharedAdd > summary {
+  position: absolute; top: 16px; right: 16px;
+  min-height: 36px; padding: 0 12px; gap: 6px;
+  font-size: 0.85rem; border-radius: 999px;
+}
+#sharedSection.has-projects #sharedAdd > summary::before { font-size: 1.1rem; }
+#sharedSection.has-projects #sharedAdd > summary::after { display: none; }
+#sharedSection.has-projects #sharedAdd[open] { margin: 0 0 14px; }
+#sharedSection.has-projects #sharedAdd[open] > summary { margin-bottom: 0; }
+#sharedSection.has-projects #sharedAdd[open] > form { margin-top: 14px; }
+@media (min-width: 700px) {
+  #sharedSection.has-projects #sharedAdd > summary { top: 20px; right: 20px; }
+}
+
+
+/* Some phone system fonts draw "@" like a heart. Pin just that one character
+   to a font that draws it properly, everywhere (text, buttons, placeholders). */
+@font-face {
+  font-family: "CadenceAt";
+  src: local("Roboto"), local("Arial"), local("Helvetica Neue"), local("Helvetica"), local("DejaVu Sans");
+  unicode-range: U+0040;
+}
+html, body, button, input, textarea, select {
+  font-family: "CadenceAt", Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+.sp-code { font-family: ui-monospace, Menlo, Consolas, monospace; }
+
+/* Chat: keep messages anchored to the bottom, next to the message box,
+   instead of floating at the top with a big empty gap underneath. */
+.chat-list > :first-child { margin-top: auto; }
+.chat-list > .chat-pins:first-child { margin-top: -4px; }
+.chat-list > .chat-pins:first-child + * { margin-top: auto; }
+
+/* ===== Chat header + composer tidy-up ===== */
+/* Back button: a proper circle, same family as the + and send buttons */
+.chat-head .chat-back {
+  flex: 0 0 40px; width: 40px; height: 40px; min-width: 40px; min-height: 40px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 50%; font-size: 1.15rem; line-height: 1;
+}
+
+/* Header as two clean rows:
+   row 1: back, project name + people, Stages
+   row 2: channel picker, full width */
+.chat-overlay:not(.chat-saved) > .chat-head {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center;
+  column-gap: 10px; row-gap: 10px;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 10px;
+}
+.chat-overlay:not(.chat-saved) > .chat-head > .chat-titles { display: contents; }
+.chat-overlay:not(.chat-saved) > .chat-head > .chat-back { grid-column: 1; grid-row: 1; }
+.chat-overlay:not(.chat-saved) > .chat-head .chat-title { grid-column: 2; grid-row: 1; min-width: 0; }
+.chat-overlay:not(.chat-saved) > .chat-head > .chat-stages { grid-column: 3; grid-row: 1; margin: 0; min-height: 40px; }
+.chat-overlay:not(.chat-saved) > .chat-head .chat-pick-btn {
+  grid-column: 1 / -1; grid-row: 2; align-self: auto;
+  width: 100%; min-height: 40px; justify-content: flex-start; padding: 6px 14px;
+}
+.chat-overlay:not(.chat-saved) > .chat-head .chat-pick-caret { margin-left: auto; }
+.chat-head .chat-title-name { font-size: 1.05rem; line-height: 1.25; }
+.chat-head .chat-title-sub { margin-top: 1px; }
+
+/* Composer: + / input / send all share one 44px height and centre line */
+.chat-form { gap: 8px; align-items: flex-end; padding: 10px 12px calc(10px + env(safe-area-inset-bottom, 0px)); }
+.chat-form .chat-plus, .chat-form .chat-send { flex: 0 0 44px; width: 44px; height: 44px; min-width: 44px; min-height: 44px; padding: 0; margin: 0; display: inline-flex; align-items: center; justify-content: center; }
+.chat-form .chat-input { margin: 0; min-height: 44px; line-height: 22px; padding: 11px 16px; border-radius: 22px; box-sizing: border-box; }
+
+/* Landscape home: simpler Community card, tighter spacing */
+@media (min-width: 900px) and (orientation: landscape) {
+  .home-feed > p.hint:not(.feed-msg), .home-feed #feedRefresh { display: none; }
+  .home-feed .feed-msg:empty { display: none; }
+  .home-main .composer:not([hidden]) { margin-bottom: 0; }
+  .home-main .composer + .home-feed { margin-top: 14px; }
+  .home-feed h2 { margin: 0 0 8px; }
+  .home-feed .feed-list { margin-top: 0; }
+  .home-feed .feed-msg { margin: 0 0 8px; }
+}

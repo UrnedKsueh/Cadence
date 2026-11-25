@@ -277,7 +277,7 @@ function fillPicker() {
   const others = threadsOf(cur.p).some(function (t) { return u.threads.has(t.id) && t.id !== cur.tid; });
   const isStage = cur.tid && cur.tid !== "general" && cur.tid !== "announcements";
   ui.pick.textContent = "";
-  ui.pick.appendChild(mk("span", "chat-pick-label", (isStage ? "" : "# ") + threadLabel(cur.tid)));
+  ui.pick.appendChild(mk("span", "chat-pick-label", (isStage ? "" : "# ") + threadLabel(cur.tid).replace(/^# /, "")));
   ui.pick.appendChild(mk("span", "chat-pick-caret", "\u25be"));
   if (others) ui.pick.appendChild(mk("span", "chat-badge", "\u25cf"));
   const panel = ui.panel;

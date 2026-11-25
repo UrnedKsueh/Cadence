@@ -713,6 +713,7 @@ function render() {
   window.dispatchEvent(new CustomEvent("cadence:sharedprojects:changed"));
   $("sharedSection").hidden = !me;
   $("sharedAdd").hidden = !me;
+  $("sharedSection").classList.toggle("has-projects", projects.length > 0);
   $("sharedOwnerNote").hidden = admin;
   $("sharedJoin").hidden = !me || admin;
   const list = $("sharedList");
