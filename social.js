@@ -399,6 +399,8 @@ async function openProfile(uid, name) {
   }
 }
 window.CadenceProfile = { open: openProfile };
+// Lets shared projects offer your friends as people to add (read-only copy)
+window.CadenceFriends = { list: function () { return friends.slice(); } };
 
 // ----- Sign-in wiring -----
 function badge() {

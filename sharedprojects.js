@@ -1,5 +1,6 @@
 // Shared projects: admins create a project, add members and assign stages; members see their projects
 // and update the status of their own stages. Runs after cloud.js.
+import { avatarEl, avatarFor } from "./avatars.js";
 import { getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, collection, query, where, orderBy, limit, getDocs, addDoc, setDoc, updateDoc, deleteDoc, arrayUnion, serverTimestamp }
@@ -44,7 +45,8 @@ function nameOf(p, uid) {
   if (me && uid === me.uid) return "You";
   return (p.names && p.names[uid]) || "Member";
 }
-function canEdit(p, stage) { return admin || (me && stage.assignee === me.uid); }
+function manage(p) { return admin || (!!me && p.createdBy === me.uid); }
+function canEdit(p, stage) { return manage(p) || (me && stage.assignee === me.uid); }
 function doneCount(p) { return p.stages.filter(function (s) { return s.status === "Done"; }).length; }
 function daysUntil(text) {
   const t = new Date();
@@ -135,76 +137,192 @@ function memberOptions(p, current) {
   return sel;
 }
 
-function stageRow(p, stage, i) {
-  const li = mk("li", "sp-stage");
-  const top = mk("div", "sp-stage-top");
-  top.appendChild(mk("strong", "", stage.name));
-  if (admin) {
-    [["Up", -1, "\u2191"], ["Down", 1, "\u2193"]].forEach(function (d) {
-      const j = i + d[1];
-      const mv = mk("button", "secondary sp-x sp-move", d[2]);
-      mv.type = "button";
-      mv.setAttribute("aria-label", "Move " + stage.name + " " + d[0].toLowerCase());
-      mv.disabled = j < 0 || j >= p.stages.length;
-      mv.onclick = async function () {
-        const a = p.stages.slice();
-        const t = a[i]; a[i] = a[j]; a[j] = t;
-        if (await patch(p, { stages: a })) render();
-      };
-      top.appendChild(mv);
-    });
-    const rm = mk("button", "secondary sp-x", "Remove");
-    rm.type = "button";
-    rm.setAttribute("aria-label", "Remove stage " + stage.name);
-    rm.onclick = async function () {
-      if (!confirm("Remove the stage \"" + stage.name + "\"?")) return;
-      if (await patch(p, { stages: p.stages.filter(function (s) { return s.id !== stage.id; }) })) render();
-    };
-    top.appendChild(rm);
-  }
-  li.appendChild(top);
+const openStages = new Set();
+// Next step shown as one clear button: [label, new status]
+const NEXT = {
+  "To do": ["Start working", "In progress"],
+  "In progress": ["Send for review", "Review"],
+  "Review": ["Mark as done", "Done"],
+  "Needs changes": ["Start working again", "In progress"]
+};
+const STATUS_HELP = {
+  "To do": "Not started yet.",
+  "In progress": "Someone is working on it.",
+  "Review": "Finished and waiting for feedback.",
+  "Needs changes": "Feedback was given. Changes are needed.",
+  "Done": "Finished."
+};
+function statusClass(s) { return "sp-st-" + String(s).toLowerCase().replace(/[^a-z]+/g, "-"); }
+function isReady(p, stage, i) {
+  return !!me && stage.assignee === me.uid && stage.status === "To do" && (i === 0 || p.stages[i - 1].status === "Done");
+}
 
-  const row = mk("div", "sp-row");
-  if (admin) {
+async function setStatus(p, stage, status) {
+  stage.status = status;
+  if (await patch(p, { stages: p.stages })) {
+    if (window.CadenceChat && me) {
+      window.CadenceChat.log(p, stage.id, ((p.names && p.names[me.uid]) || me.displayName || "Someone") + " set " + stage.name + " to " + status);
+    }
+    render();
+  }
+}
+
+function fieldBlock(label, node) {
+  const d = mk("div", "sp-field");
+  d.appendChild(mk("span", "sp-label", label));
+  d.appendChild(node);
+  return d;
+}
+
+function linkEditor(p, stage) {
+  const det = mk("details", "sp-edit");
+  det.appendChild(mk("summary", "", stage.note || stage.links.length ? "Edit note and links" : "Add a note or links"));
+  const form = mk("form", "sp-edit-form");
+  form.autocomplete = "off";
+  const note = mk("textarea", "field");
+  note.rows = 2; note.maxLength = 300; note.value = stage.note;
+  note.placeholder = "Note for the team, e.g. v2 is ready, check shot 14";
+  note.setAttribute("aria-label", "Note for " + stage.name);
+  form.appendChild(note);
+  form.appendChild(mk("small", "hint", "Add links to Drive or Dropbox files. Name each one, e.g. v1, v2, final."));
+  const rows = mk("div", "sp-link-rows");
+  const draft = stage.links.map(function (l) { return { label: l.label, url: l.url }; });
+  function drawRows() {
+    rows.textContent = "";
+    draft.forEach(function (l, k) {
+      const r = mk("div", "sp-link-row");
+      const lab = mk("input", "field");
+      lab.maxLength = 30; lab.value = l.label; lab.placeholder = "Name, e.g. v2";
+      lab.setAttribute("aria-label", "Name of link " + (k + 1));
+      lab.oninput = function () { l.label = lab.value; };
+      const url = mk("input", "field");
+      url.type = "url"; url.maxLength = 300; url.value = l.url; url.placeholder = "https://...";
+      url.setAttribute("aria-label", "Address of link " + (k + 1));
+      url.oninput = function () { l.url = url.value; };
+      const rm = mk("button", "secondary sp-x", "Remove");
+      rm.type = "button";
+      rm.setAttribute("aria-label", "Remove link " + (k + 1));
+      rm.onclick = function () { draft.splice(k, 1); drawRows(); };
+      r.appendChild(lab); r.appendChild(url); r.appendChild(rm);
+      rows.appendChild(r);
+    });
+  }
+  drawRows();
+  form.appendChild(rows);
+  const addLink = mk("button", "secondary sp-x", "Add a link");
+  addLink.type = "button";
+  addLink.onclick = function () {
+    if (draft.length >= MAX_LINKS) { say("Up to " + MAX_LINKS + " links per stage."); return; }
+    draft.push({ label: "", url: "" }); drawRows();
+  };
+  form.appendChild(addLink);
+  const save = mk("button", "", "Save");
+  save.type = "submit";
+  form.appendChild(save);
+  form.onsubmit = async function (e) {
+    e.preventDefault();
+    const links = [];
+    for (let k = 0; k < draft.length; k++) {
+      const raw = String(draft[k].url || "").trim();
+      if (!raw) continue;
+      const ok = safeLink(raw);
+      if (!ok) { say("Links must start with https://"); return; }
+      links.push({ label: String(draft[k].label || "").trim().slice(0, 30), url: ok });
+    }
+    say("");
+    stage.note = note.value.trim().slice(0, 300);
+    stage.links = links;
+    delete stage.link;
+    if (await patch(p, { stages: p.stages })) render();
+  };
+  det.appendChild(form);
+  return det;
+}
+
+function stageRow(p, stage, i) {
+  const mine = !!me && stage.assignee === me.uid;
+  const li = mk("li", "sp-stage" + (mine ? " sp-mine" : ""));
+  li.dataset.stage = stage.id;
+  const det = mk("details", "sp-stage-det");
+  det.open = openStages.has(stage.id);
+  det.addEventListener("toggle", function () { if (det.open) openStages.add(stage.id); else openStages.delete(stage.id); });
+
+  // Summary line: what a person sees without tapping
+  const sum = mk("summary", "sp-stage-sum");
+  const dot = mk("span", "sp-dot " + statusClass(stage.status));
+  dot.setAttribute("aria-hidden", "true");
+  sum.appendChild(dot);
+  const main = mk("span", "sp-stage-main");
+  main.appendChild(mk("strong", "", stage.name));
+  const sub = mk("small", "sp-sub");
+  sub.appendChild(document.createTextNode(stage.assignee ? (mine ? "You" : nameOf(p, stage.assignee)) : "Not assigned yet"));
+  const due = stageDue(p, stage);
+  if (due) {
+    const late = stage.status !== "Done" && daysUntil(due) < 0;
+    const dueNode = mk("span", late ? "sp-late-text" : "", " \u00b7 " + dueLabel(due));
+    sub.appendChild(dueNode);
+  }
+  main.appendChild(sub);
+  sum.appendChild(main);
+  const right = mk("span", "sp-stage-right");
+  if (isReady(p, stage, i)) right.appendChild(mk("span", "chip sp-ready", "Your turn"));
+  else if (mine && stage.status === "Needs changes") right.appendChild(mk("span", "chip sp-ready", "Fix needed"));
+  else {
+    const st = mk("span", "sp-st-label", stage.status);
+    right.appendChild(st);
+  }
+  if (window.CadenceChat && window.CadenceChat.unreadFor(p).threads.has(stage.id)) {
+    const u = mk("span", "sp-unread", "\u25cf");
+    u.setAttribute("aria-label", "New messages in this stage");
+    right.appendChild(u);
+  }
+  sum.appendChild(right);
+  det.appendChild(sum);
+
+  // Details: shown when the stage is tapped
+  const body = mk("div", "sp-stage-body");
+  if (isReady(p, stage, i)) body.appendChild(mk("p", "sp-tip", "It's your turn. The stage before yours is finished, so you can start."));
+  if (mine && stage.status === "Needs changes") body.appendChild(mk("p", "sp-tip", "Feedback was left on this stage. Check the note and chat, then start again."));
+
+  // Who
+  if (manage(p)) {
     const who = memberOptions(p, stage.assignee);
-    who.setAttribute("aria-label", "Assignee for " + stage.name);
+    who.setAttribute("aria-label", "Assigned to, for " + stage.name);
     who.onchange = async function () {
       stage.assignee = who.value;
       if (await patch(p, { stages: p.stages })) render();
     };
-    row.appendChild(who);
-  } else {
-    row.appendChild(mk("span", "chip", stage.assignee ? nameOf(p, stage.assignee) : "Unassigned"));
+    body.appendChild(fieldBlock("Assigned to", who));
   }
 
+  // Status: one clear next step, plus a menu for anything else
   if (canEdit(p, stage)) {
+    const wrap = mk("div", "sp-status-box");
+    const next = NEXT[stage.status];
+    if (next) {
+      const go = mk("button", "sp-next-step", next[0]);
+      go.type = "button";
+      go.onclick = function () { go.disabled = true; setStatus(p, stage, next[1]); };
+      wrap.appendChild(go);
+    }
     const st = mk("select", "field sp-select");
-    st.setAttribute("aria-label", "Status for " + stage.name);
-    STATUS.forEach(function (s) { st.appendChild(new Option(s, s)); });
+    st.setAttribute("aria-label", "Change status of " + stage.name);
+    STATUS.forEach(function (x) { st.appendChild(new Option(x, x)); });
     st.value = stage.status;
-    st.onchange = async function () {
-      stage.status = st.value;
-      if (await patch(p, { stages: p.stages })) {
-        if (window.CadenceChat) window.CadenceChat.log(p, stage.id, ((p.names && p.names[me.uid]) || me.displayName || "Someone") + " set " + stage.name + " to " + stage.status);
-        render();
-      }
-    };
-    row.appendChild(st);
+    st.onchange = function () { setStatus(p, stage, st.value); };
+    wrap.appendChild(fieldBlock("Or choose a status", st));
+    wrap.appendChild(mk("small", "hint", STATUS_HELP[stage.status]));
+    body.appendChild(fieldBlock("Status: " + stage.status, wrap));
   } else {
+    const ro = mk("div", "sp-status-box");
     const chip = mk("span", "status sp-status", stage.status);
     chip.dataset.status = stage.status;
-    row.appendChild(chip);
+    ro.appendChild(chip);
+    ro.appendChild(mk("small", "hint", STATUS_HELP[stage.status] + (stage.assignee ? " Only " + nameOf(p, stage.assignee) + " can change it." : "")));
+    body.appendChild(fieldBlock("Status", ro));
   }
 
-  const ready = me && stage.assignee === me.uid && stage.status === "To do" &&
-    (i === 0 || p.stages[i - 1].status === "Done");
-  if (ready) row.appendChild(mk("span", "chip sp-ready", "Ready for you"));
-  if (me && stage.assignee === me.uid && stage.status === "Needs changes") row.appendChild(mk("span", "chip sp-ready", "Changes requested"));
-  if (window.CadenceChat) row.appendChild(window.CadenceChat.stageButton(p, stage));
-  li.appendChild(row);
-
-  if (admin) {
-    const dueRow = mk("div", "sp-row sp-due-row");
+  if (manage(p)) {
     const dueIn = mk("input", "field sp-select");
     dueIn.type = "date";
     dueIn.value = stage.due;
@@ -213,16 +331,10 @@ function stageRow(p, stage, i) {
       stage.due = dueIn.value;
       if (await patch(p, { stages: p.stages })) render();
     };
-    dueRow.appendChild(mk("small", "hint", "Due"));
-    dueRow.appendChild(dueIn);
-    li.appendChild(dueRow);
-  }
-  if (stage.due) {
-    const late = stage.status !== "Done" && daysUntil(stage.due) < 0;
-    li.appendChild(mk("span", "chip sp-due" + (late ? " sp-late" : ""), dueLabel(stage.due)));
+    body.appendChild(fieldBlock("Due date", dueIn));
   }
 
-  if (stage.note) li.appendChild(mk("p", "sp-note", stage.note));
+  if (stage.note) body.appendChild(mk("p", "sp-note", stage.note));
   if (stage.links.length) {
     const box = mk("div", "sp-links");
     stage.links.forEach(function (l, k) {
@@ -230,83 +342,103 @@ function stageRow(p, stage, i) {
       a.href = l.url; a.target = "_blank"; a.rel = "noopener noreferrer";
       box.appendChild(a);
     });
-    li.appendChild(box);
+    body.appendChild(box);
   }
-  if (canEdit(p, stage)) {
-    const det = mk("details", "sp-edit");
-    det.appendChild(mk("summary", "", stage.note || stage.links.length ? "Edit note and links" : "Add note or links"));
-    const form = mk("form", "sp-edit-form");
-    form.autocomplete = "off";
-    const note = mk("textarea", "field");
-    note.rows = 2; note.maxLength = 300; note.value = stage.note;
-    note.placeholder = "Note for the team, e.g. v2 uploaded, check shot 14";
-    note.setAttribute("aria-label", "Note for " + stage.name);
-    form.appendChild(note);
-    form.appendChild(mk("small", "hint", "Links to Drive or Dropbox files. Name each one, e.g. v1, v2, final."));
-    const rows = mk("div", "sp-link-rows");
-    const draft = stage.links.map(function (l) { return { label: l.label, url: l.url }; });
-    function drawRows() {
-      rows.textContent = "";
-      draft.forEach(function (l, k) {
-        const r = mk("div", "sp-link-row");
-        const lab = mk("input", "field");
-        lab.maxLength = 30; lab.value = l.label; lab.placeholder = "Name, e.g. v2";
-        lab.setAttribute("aria-label", "Name of link " + (k + 1));
-        lab.oninput = function () { l.label = lab.value; };
-        const url = mk("input", "field");
-        url.type = "url"; url.maxLength = 300; url.value = l.url; url.placeholder = "https://...";
-        url.setAttribute("aria-label", "Address of link " + (k + 1));
-        url.oninput = function () { l.url = url.value; };
-        const rm = mk("button", "secondary sp-x", "Remove");
-        rm.type = "button";
-        rm.setAttribute("aria-label", "Remove link " + (k + 1));
-        rm.onclick = function () { draft.splice(k, 1); drawRows(); };
-        r.appendChild(lab); r.appendChild(url); r.appendChild(rm);
-        rows.appendChild(r);
-      });
-    }
-    drawRows();
-    form.appendChild(rows);
-    const addLink = mk("button", "secondary sp-x", "Add a link");
-    addLink.type = "button";
-    addLink.onclick = function () {
-      if (draft.length >= MAX_LINKS) { say("Up to " + MAX_LINKS + " links per stage."); return; }
-      draft.push({ label: "", url: "" }); drawRows();
+  if (canEdit(p, stage)) body.appendChild(linkEditor(p, stage));
+
+  const actions = mk("div", "sp-stage-actions");
+  if (window.CadenceChat) actions.appendChild(window.CadenceChat.stageButton(p, stage));
+  if (manage(p)) {
+    [["Up", -1, "Move up"], ["Down", 1, "Move down"]].forEach(function (d) {
+      const j = i + d[1];
+      const mv = mk("button", "secondary sp-x sp-move", d[2]);
+      mv.type = "button";
+      mv.setAttribute("aria-label", d[2] + ": " + stage.name);
+      mv.disabled = j < 0 || j >= p.stages.length;
+      mv.onclick = async function () {
+        const a = p.stages.slice();
+        const t = a[i]; a[i] = a[j]; a[j] = t;
+        if (await patch(p, { stages: a })) render();
+      };
+      actions.appendChild(mv);
+    });
+    const rm = mk("button", "secondary sp-x sp-danger", "Remove stage");
+    rm.type = "button";
+    rm.onclick = async function () {
+      if (!confirm("Remove the stage \"" + stage.name + "\"?")) return;
+      if (await patch(p, { stages: p.stages.filter(function (s) { return s.id !== stage.id; }) })) render();
     };
-    form.appendChild(addLink);
-    const save = mk("button", "", "Save");
-    save.type = "submit";
-    form.appendChild(save);
-    form.onsubmit = async function (e) {
-      e.preventDefault();
-      const links = [];
-      for (let k = 0; k < draft.length; k++) {
-        const raw = String(draft[k].url || "").trim();
-        if (!raw) continue;
-        const ok = safeLink(raw);
-        if (!ok) { say("Links must start with https://"); return; }
-        links.push({ label: String(draft[k].label || "").trim().slice(0, 30), url: ok });
-      }
-      say("");
-      stage.note = note.value.trim().slice(0, 300);
-      stage.links = links;
-      delete stage.link;
-      if (await patch(p, { stages: p.stages })) render();
-    };
-    det.appendChild(form);
-    li.appendChild(det);
+    actions.appendChild(rm);
   }
+  body.appendChild(actions);
+  det.appendChild(body);
+  li.appendChild(det);
   return li;
+}
+
+async function addPeople(p, people) {
+  const room = 40 - p.members.length;
+  if (room <= 0) { say("A project can have up to 40 members."); return; }
+  const add = people.filter(function (f) { return p.members.indexOf(f.uid) < 0; }).slice(0, room);
+  if (!add.length) return;
+  const names = Object.assign({}, p.names);
+  add.forEach(function (f) { names[f.uid] = String(f.nickname || ("@" + f.handle)).slice(0, 30); });
+  if (await patch(p, { members: p.members.concat(add.map(function (f) { return f.uid; })), names: names })) {
+    say(add.length === 1 ? (add[0].nickname || "They") + " was added." : add.length + " people were added.");
+    render();
+  }
+}
+
+const openFriendPickers = new Set();
+function friendPicker(p) {
+  const det = mk("details", "sp-fold sp-friend-fold");
+  det.open = openFriendPickers.has(p.id);
+  det.addEventListener("toggle", function () { if (det.open) openFriendPickers.add(p.id); else openFriendPickers.delete(p.id); });
+  det.appendChild(mk("summary", "", "Add from your friends"));
+  const friends = window.CadenceFriends ? window.CadenceFriends.list() : [];
+  const avail = friends.filter(function (f) { return p.members.indexOf(f.uid) < 0; });
+  if (!friends.length) {
+    det.appendChild(mk("p", "hint", "You have no friends on Cadence yet. Add friends from your Profile tab, or add someone by handle below."));
+    return det;
+  }
+  if (!avail.length) {
+    det.appendChild(mk("p", "hint", "All your friends are already in this project."));
+    return det;
+  }
+  const ul = mk("ul", "sp-friend-list");
+  avail.forEach(function (f) {
+    const li = mk("li", "sp-friend");
+    li.appendChild(avatarEl(f, "sp-ava", f.nickname));
+    const who = mk("span", "sp-friend-who");
+    who.appendChild(mk("strong", "", f.nickname || ("@" + f.handle)));
+    if (f.handle) who.appendChild(mk("small", "", "@" + f.handle));
+    li.appendChild(who);
+    const b = mk("button", "secondary sp-x", "Add");
+    b.type = "button";
+    b.setAttribute("aria-label", "Add " + (f.nickname || f.handle) + " to this project");
+    b.onclick = function () { b.disabled = true; addPeople(p, [f]); };
+    li.appendChild(b);
+    ul.appendChild(li);
+  });
+  det.appendChild(ul);
+  if (avail.length > 1) {
+    const all = mk("button", "sp-x", "Add all " + avail.length);
+    all.type = "button";
+    all.onclick = function () { all.disabled = true; addPeople(p, avail); };
+    det.appendChild(all);
+  }
+  return det;
 }
 
 function memberBar(p) {
   const box = mk("div", "sp-members");
-  box.appendChild(mk("h3", "", "Members"));
+  box.appendChild(mk("h3", "", "People"));
   const chips = mk("div", "sp-row");
-  if (!p.members.length) chips.appendChild(mk("span", "hint", admin ? "No members yet. Add people by their handle." : "No members listed."));
+  if (!p.members.length) chips.appendChild(mk("span", "hint", manage(p) ? "No members yet. Add people by their handle." : "No members listed."));
   p.members.forEach(function (uid) {
-    const c = mk("span", "chip", nameOf(p, uid));
-    if (admin) {
+    const c = mk("span", "chip sp-person", nameOf(p, uid));
+    c.insertBefore(avatarFor(uid, (p.names && p.names[uid]) || "?", "sp-ava"), c.firstChild);
+    if (manage(p)) {
       const x = mk("button", "sp-chip-x", "\u2715");
       x.type = "button";
       x.setAttribute("aria-label", "Remove " + nameOf(p, uid) + " from this project");
@@ -323,7 +455,9 @@ function memberBar(p) {
   });
   box.appendChild(chips);
 
-  if (admin) {
+  if (manage(p)) {
+    box.appendChild(friendPicker(p));
+    box.appendChild(mk("small", "hint", "Or add someone by their handle:"));
     const form = mk("form", "sp-row sp-add");
     form.autocomplete = "off";
     const input = mk("input", "field");
@@ -431,20 +565,29 @@ function stageAdder(p) {
   return form;
 }
 
+function fold(title, node) {
+  const d = mk("details", "sp-fold");
+  d.appendChild(mk("summary", "", title));
+  d.appendChild(node);
+  return d;
+}
+
 function card(p) {
   const li = mk("li", "project shared-project");
   const isOpen = open.has(p.id);
-  const top = mk("div", "project-top");
-  const pname = mk("span", "pname");
-  pname.appendChild(mk("span", "", p.name));
-  const tags = mk("span", "tags");
-  tags.appendChild(mk("span", "chip", doneCount(p) + "/" + p.stages.length + " done"));
-  if (p.course) tags.appendChild(mk("span", "chip", p.course));
-  if (p.due) tags.appendChild(mk("span", "chip", "Due " + p.due));
-  pname.appendChild(tags);
-  top.appendChild(pname);
-  top.appendChild(mk("span", "percent", percent(p) + "%"));
-  li.appendChild(top);
+  const total = p.stages.length;
+
+  const head = mk("div", "sp-card-head");
+  const titles = mk("div", "sp-card-titles");
+  titles.appendChild(mk("h3", "sp-card-name", p.name));
+  const meta = [];
+  if (p.course) meta.push(p.course);
+  if (p.due) meta.push("Due " + p.due);
+  if (!admin && me && p.createdBy === me.uid) meta.push("You own this");
+  if (meta.length) titles.appendChild(mk("small", "sp-sub", meta.join(" \u00b7 ")));
+  head.appendChild(titles);
+  head.appendChild(mk("span", "sp-percent", percent(p) + "%"));
+  li.appendChild(head);
 
   const bar = mk("div", "sp-bar");
   bar.setAttribute("role", "progressbar");
@@ -454,24 +597,40 @@ function card(p) {
   const fill = mk("span"); fill.style.width = percent(p) + "%";
   bar.appendChild(fill);
   li.appendChild(bar);
+  li.appendChild(mk("small", "sp-sub", total ? doneCount(p) + " of " + total + " stages done" : "No stages yet"));
 
-  if (window.CadenceChat) li.appendChild(window.CadenceChat.button(p));
-  const toggle = mk("button", "secondary sp-toggle", isOpen ? "Hide details" : "Show details");
+  // The person's own next task in this project, one tap away
+  const mineNext = myTasks().filter(function (t) { return t.p === p; })[0];
+  if (mineNext) {
+    const nb = mk("button", "sp-next-task");
+    nb.type = "button";
+    nb.appendChild(mk("small", "", mineNext.ready ? "Your turn" : mineNext.fix ? "Needs your fix" : "Your next task"));
+    const dd = stageDue(p, mineNext.s);
+    nb.appendChild(mk("strong", "", mineNext.s.name + (dd ? " \u00b7 " + dueLabel(dd) : "")));
+    nb.onclick = function () { showProject(p.id, mineNext.s.id); };
+    li.appendChild(nb);
+  }
+
+  const actions = mk("div", "sp-card-actions");
+  if (window.CadenceChat) actions.appendChild(window.CadenceChat.button(p));
+  const toggle = mk("button", "secondary sp-toggle", isOpen ? "Hide stages" : "See stages (" + total + ")");
   toggle.type = "button";
   toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
   toggle.onclick = function () { if (open.has(p.id)) open.delete(p.id); else open.add(p.id); render(); };
-  li.appendChild(toggle);
+  actions.appendChild(toggle);
+  li.appendChild(actions);
 
   if (isOpen) {
     const body = mk("div", "sp-body");
+    body.appendChild(mk("p", "hint sp-howto", manage(p) ? "Tap a stage to assign it, set a date or update it." : "Tap a stage to see details and update your own."));
     const stages = mk("ul", "sp-stages");
-    if (!p.stages.length) stages.appendChild(mk("li", "hint", "No stages yet."));
+    if (!total) stages.appendChild(mk("li", "hint", "No stages yet."));
     p.stages.forEach(function (s, i) { stages.appendChild(stageRow(p, s, i)); });
     body.appendChild(stages);
-    if (admin) body.appendChild(stageAdder(p));
+    if (manage(p)) body.appendChild(fold("Add a stage", stageAdder(p)));
     body.appendChild(memberBar(p));
-    if (admin) body.appendChild(inviteBox(p));
-    if (admin) {
+    if (manage(p)) body.appendChild(inviteBox(p));
+    if (manage(p)) {
       const del = mk("button", "secondary sp-delete", "Delete project");
       del.type = "button";
       del.onclick = async function () {
@@ -532,16 +691,19 @@ function renderTasks() {
     chip.dataset.status = t.s.status;
     tags.appendChild(chip);
     btn.appendChild(tags);
-    btn.onclick = function () { showProject(t.p.id); };
+    btn.onclick = function () { showProject(t.p.id, t.s.id); };
     li.appendChild(btn);
     list.appendChild(li);
   });
 }
 
-function showProject(id) {
+function showProject(id, stageId) {
   open.add(id);
+  if (stageId) openStages.add(stageId);
   if (window.showTab) window.showTab("projects");
   render();
+  const target = stageId ? $("sharedList").querySelector('[data-stage="' + stageId + '"]') : null;
+  if (target) { target.scrollIntoView({ block: "center" }); return; }
   const cards = $("sharedList").children;
   for (let i = 0; i < projects.length; i++) {
     if (projects[i].id === id && cards[i]) { cards[i].scrollIntoView({ block: "start" }); break; }
@@ -552,7 +714,8 @@ function render() {
   renderTasks();
   window.dispatchEvent(new CustomEvent("cadence:sharedprojects:changed"));
   $("sharedSection").hidden = !me;
-  $("sharedAdd").hidden = !admin;
+  $("sharedAdd").hidden = !me;
+  $("sharedOwnerNote").hidden = admin;
   $("sharedJoin").hidden = !me || admin;
   const list = $("sharedList");
   list.textContent = "";
@@ -561,23 +724,38 @@ function render() {
   empty.hidden = projects.length > 0 || !me;
   empty.querySelector("p").textContent = admin
     ? "No shared projects yet. Tap New shared project above to start one."
-    : "Nothing here yet. Projects you're added to will appear here.";
+    : "No shared projects yet. Start one with New shared project, or tap Join with a code if you were given one.";
 }
 
 TEMPLATES.forEach(function (t, i) { $("sharedTemplate").appendChild(new Option(t.stages.length ? t.name + " (" + t.stages.length + " stages)" : t.name, String(i))); });
 
+const MAX_OWNED = 5;
 $("sharedForm").onsubmit = async function (e) {
   e.preventDefault();
-  if (!admin) return;
+  if (!me) return;
   const name = $("sharedName").value.trim();
   if (!name) return;
+  if (!admin && projects.filter(function (p) { return p.createdBy === me.uid; }).length >= MAX_OWNED) {
+    say("You can own up to " + MAX_OWNED + " shared projects. Delete one you no longer need first.");
+    return;
+  }
   const btn = e.submitter; if (btn) btn.disabled = true;
   const tpl = TEMPLATES[Number($("sharedTemplate").value)] || TEMPLATES[0];
   const stages = tpl.stages.map(function (n) { return { id: newId(), name: n, assignee: "", status: "To do", due: "", links: [] }; });
+  // Students start as the owner and first member. Admins create without joining.
+  let members = [], names = {};
+  if (!admin) {
+    let nick = me.displayName || "Owner";
+    try {
+      const prof = await getDoc(doc(db, "profiles", me.uid));
+      if (prof.exists() && prof.data().nickname) nick = String(prof.data().nickname);
+    } catch (err) {}
+    members = [me.uid]; names[me.uid] = nick.slice(0, 30);
+  }
   try {
     const ref = await addDoc(collection(db, "sharedProjects"), {
       name: name.slice(0, 80), course: $("sharedCourse").value.trim().slice(0, 40), due: $("sharedDue").value || "",
-      members: [], names: {}, stages: stages, createdBy: me.uid, createdAt: serverTimestamp(), updatedAt: Date.now()
+      members: members, names: names, stages: stages, createdBy: me.uid, createdAt: serverTimestamp(), updatedAt: Date.now()
     });
     $("sharedForm").reset();
     $("sharedTemplate").value = "0";
@@ -585,10 +763,11 @@ $("sharedForm").onsubmit = async function (e) {
     open.add(ref.id);
     await load(true);
   } catch (err) {
-    say("Couldn't create the project. Make sure the shared project rules are published and your account is in the admins collection.");
+    say("Couldn't create the project. Make sure the latest rules are published in Firebase.");
   }
   if (btn) btn.disabled = false;
 };
+
 $("joinForm").onsubmit = async function (e) {
   e.preventDefault();
   if (!me) return;

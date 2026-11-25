@@ -1,6 +1,7 @@
-// Project chat: every shared project gets # General, # Announcements (admin-only posting) and one thread per stage.
+// Project chat: every shared project gets # General, # Announcements (owner/admin-only posting) and one thread per stage.
 // Messages live in sharedProjects/{pid}/threads/{threadId}/messages. Runs after sharedprojects.js.
 // Free-plan friendly: only the open thread is listened to, history loads 30 at a time, unread uses a map on the project doc.
+import { avatarFor } from "./avatars.js";
 import { getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, collection, query, where, orderBy, limit, startAfter, getDocs, addDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp, Timestamp, arrayUnion, arrayRemove }
@@ -17,6 +18,7 @@ let admin = false;
 let cur = null; // { p, tid, msgs: Map, unsub, oldest, hasMore }
 let ui = null;
 let lastSend = 0;
+const picked = new Map(); // people chosen from the @ list: uid -> name
 
 function mk(tag, cls, text) {
   const n = document.createElement(tag);
@@ -90,10 +92,15 @@ function build() {
   form.autocomplete = "off";
   const box = mk("textarea", "field chat-input");
   box.rows = 1; box.maxLength = MAX_LEN;
-  box.placeholder = "Message, or @handle to mention";
+  box.placeholder = "Message. Type @ to mention someone";
   box.setAttribute("aria-label", "Message");
   const send = mk("button", "chat-send", "Send");
   send.type = "submit";
+  const suggest = mk("div", "chat-suggest");
+  suggest.hidden = true;
+  suggest.setAttribute("role", "listbox");
+  suggest.setAttribute("aria-label", "People to mention");
+  form.appendChild(suggest);
   form.appendChild(box); form.appendChild(send);
 
   root.appendChild(head); root.appendChild(list); root.appendChild(note); root.appendChild(form);
@@ -108,10 +115,13 @@ function build() {
   box.addEventListener("input", function () {
     box.style.height = "auto";
     box.style.height = Math.min(box.scrollHeight, 120) + "px";
+    showSuggest();
   });
+  box.addEventListener("click", showSuggest);
+  box.addEventListener("blur", function () { setTimeout(hideSuggest, 150); });
   document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !root.hidden) close(); });
 
-  ui = { root: root, title: title, pick: pick, list: list, note: note, box: box, send: send, back: back };
+  ui = { suggest: suggest, root: root, title: title, pick: pick, list: list, note: note, box: box, send: send, back: back };
   return ui;
 }
 
@@ -124,7 +134,8 @@ function fillPicker() {
   ui.pick.value = cur.tid;
 }
 
-function canPost() { return cur.tid !== "announcements" || admin; }
+function manage(p) { return admin || (!!me && p.createdBy === me.uid); }
+function canPost() { return cur.tid !== "announcements" || manage(cur.p); }
 
 function setComposer() {
   const ok = canPost();
@@ -142,16 +153,67 @@ function say(text) {
 function msgsRef() { return collection(db, "sharedProjects", cur.p.id, "threads", cur.tid, "messages"); }
 
 function dayLabel(t) { return new Date(t).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }); }
+// ---- @ suggestions: people in this project, picked from a list ----
+function hideSuggest() { if (ui) ui.suggest.hidden = true; }
+function mentionToken() {
+  const upto = ui.box.value.slice(0, ui.box.selectionStart);
+  const m = /(^|\s)@([^\s@]{0,30})$/.exec(upto);
+  return m ? { start: upto.length - m[2].length - 1, query: m[2].toLowerCase() } : null;
+}
+function showSuggest() {
+  if (!cur || !canPost()) { hideSuggest(); return; }
+  const tok = mentionToken();
+  if (!tok) { hideSuggest(); return; }
+  const p = cur.p;
+  const list = [];
+  if (manage(p) && "everyone".indexOf(tok.query) === 0) list.push({ uid: "", name: "everyone", label: "Everyone in this project" });
+  p.members.forEach(function (uid) {
+    if (me && uid === me.uid) return;
+    const name = (p.names && p.names[uid]) || "";
+    if (name && name.toLowerCase().indexOf(tok.query) >= 0) list.push({ uid: uid, name: name, label: name });
+  });
+  ui.suggest.textContent = "";
+  if (!list.length) { ui.suggest.hidden = true; return; }
+  list.slice(0, 6).forEach(function (it) {
+    const b = mk("button", "chat-suggest-item");
+    b.type = "button";
+    b.setAttribute("role", "option");
+    if (it.uid) b.appendChild(avatarFor(it.uid, it.name, "chat-ava"));
+    else b.appendChild(mk("span", "chat-ava chat-ava-all", "@"));
+    b.appendChild(mk("span", "", it.label));
+    b.addEventListener("pointerdown", function (e) { e.preventDefault(); });
+    b.onclick = function () { pickMention(it, tok); };
+    ui.suggest.appendChild(b);
+  });
+  ui.suggest.hidden = false;
+}
+function pickMention(it, tok) {
+  const v = ui.box.value;
+  const end = ui.box.selectionStart;
+  const ins = "@" + it.name + " ";
+  ui.box.value = v.slice(0, tok.start) + ins + v.slice(end);
+  const pos = tok.start + ins.length;
+  ui.box.setSelectionRange(pos, pos);
+  if (it.uid) picked.set(it.uid, it.name);
+  hideSuggest();
+  ui.box.focus();
+}
+function esc(x) { return x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+
 function timeLabel(t) { return new Date(t).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); }
 
-function bodyNode(text) {
+function bodyNode(m) {
+  const text = m.text;
   const p = mk("p", "chat-text");
-  let last = 0, m;
-  MENTION_RE.lastIndex = 0;
-  while ((m = MENTION_RE.exec(text)) !== null) {
-    if (m.index > last) p.appendChild(document.createTextNode(text.slice(last, m.index)));
-    p.appendChild(mk("span", "chat-mention", m[0]));
-    last = m.index + m[0].length;
+  const names = (m.mentions || []).map(function (u) { return cur.p.names && cur.p.names[u]; })
+    .filter(Boolean).sort(function (x, y) { return y.length - x.length; }).map(esc);
+  if (m.everyone) names.push("everyone");
+  const re = new RegExp("@(" + names.concat(["[a-z0-9_]{3,20}"]).join("|") + ")", "gi");
+  let last = 0, hit;
+  while ((hit = re.exec(text)) !== null) {
+    if (hit.index > last) p.appendChild(document.createTextNode(text.slice(last, hit.index)));
+    p.appendChild(mk("span", "chat-mention", hit[0]));
+    last = hit.index + hit[0].length;
   }
   if (last < text.length) p.appendChild(document.createTextNode(text.slice(last)));
   return p;
@@ -166,7 +228,7 @@ function render(stick) {
     cur.pins.forEach(function (pin, id) {
       const row = mk("div", "chat-pin");
       row.appendChild(mk("span", "", "\ud83d\udccc " + (pin.name ? pin.name + ": " : "") + (pin.text.length > 140 ? pin.text.slice(0, 140) + "\u2026" : pin.text)));
-      if (admin) {
+      if (manage(cur.p)) {
         const un = mk("button", "chat-del", "Unpin");
         un.type = "button";
         un.onclick = function () { setPin(id, false); };
@@ -194,27 +256,30 @@ function render(stick) {
     }
     const mine = me && m.uid === me.uid;
     const tagged = me && Array.isArray(m.mentions) && m.mentions.indexOf(me.uid) >= 0;
-    const row = mk("div", "chat-msg" + (mine ? " chat-mine" : "") + (tagged ? " chat-tagged" : ""));
+    const wrap = mk("div", "chat-row" + (mine ? " chat-row-mine" : ""));
+    wrap.appendChild(avatarFor(m.uid, m.name, "chat-ava"));
+    const row = mk("div", "chat-msg" + (mine ? " chat-mine" : "") + (tagged || (m.everyone && !mine) ? " chat-tagged" : ""));
     const meta = mk("div", "chat-meta");
     meta.appendChild(mk("strong", "", mine ? "You" : (m.name || "Member")));
     meta.appendChild(mk("small", "", timeLabel(m.t)));
-    if (mine || admin) {
+    if (mine || manage(cur.p)) {
       const del = mk("button", "chat-del", "Delete");
       del.type = "button";
       del.setAttribute("aria-label", "Delete this message");
       del.onclick = function () { removeMsg(m.id); };
       meta.appendChild(del);
     }
-    if (admin) {
+    if (manage(cur.p)) {
       const pin = mk("button", "chat-del chat-pinbtn", cur.pins.has(m.id) ? "Unpin" : "Pin");
       pin.type = "button";
       pin.onclick = function () { setPin(m.id, !cur.pins.has(m.id)); };
       meta.insertBefore(pin, meta.querySelector(".chat-del"));
     }
     row.appendChild(meta);
-    row.appendChild(bodyNode(m.text));
+    row.appendChild(bodyNode(m));
     row.appendChild(reactionRow(m));
-    list.appendChild(row);
+    wrap.appendChild(row);
+    list.appendChild(wrap);
   });
   if (stick || nearBottom) list.scrollTop = list.scrollHeight;
 }
@@ -273,7 +338,7 @@ function ingest(docSnap) {
   const d = docSnap.data({ serverTimestamps: "estimate" });
   cur.msgs.set(docSnap.id, {
     id: docSnap.id, uid: String(d.uid || ""), name: String(d.name || ""), text: String(d.text || ""),
-    kind: d.kind || "", reactions: d.reactions && typeof d.reactions === "object" ? d.reactions : {}, pinned: !!d.pinned, mentions: Array.isArray(d.mentions) ? d.mentions : [], t: ms(d.createdAt) || Date.now()
+    kind: d.kind || "", everyone: d.everyone === true, reactions: d.reactions && typeof d.reactions === "object" ? d.reactions : {}, pinned: !!d.pinned, mentions: Array.isArray(d.mentions) ? d.mentions : [], t: ms(d.createdAt) || Date.now()
   });
 }
 
@@ -353,6 +418,10 @@ async function resolveMentions(p, text) {
     if (handles.length >= 5) break;
   }
   const uids = [];
+  // People picked from the @ list (their name must still be in the text)
+  picked.forEach(function (name, uid) {
+    if (text.toLowerCase().indexOf("@" + name.toLowerCase()) >= 0 && p.members.indexOf(uid) >= 0) uids.push(uid);
+  });
   for (let i = 0; i < handles.length; i++) {
     try {
       const hs = await getDoc(doc(db, "handles", handles[i]));
@@ -368,9 +437,10 @@ async function resolveMentions(p, text) {
 function myName(p) { return String((p.names && p.names[me.uid]) || me.displayName || "Admin").slice(0, 30); }
 
 // Mark the thread as having new activity so other members see an unread dot
-async function bump(p, tid, mentionUids) {
+async function bump(p, tid, mentionUids, everyone) {
   const fields = {};
   fields["chatAt." + tid] = Date.now();
+  if (everyone) p.members.forEach(function (uid) { if (uid !== me.uid) fields["chatMention." + uid] = { t: Date.now(), thread: tid }; });
   mentionUids.forEach(function (uid) { fields["chatMention." + uid] = { t: Date.now(), thread: tid }; });
   try { await updateDoc(doc(db, "sharedProjects", p.id), fields); } catch (e) {}
 }
@@ -386,12 +456,15 @@ async function submit() {
   try {
     const mentions = await resolveMentions(p, text);
     const data = { uid: me.uid, name: myName(p), text: text, createdAt: serverTimestamp() };
-    if (mentions.length) data.mentions = mentions;
+    if (mentions.length) data.mentions = mentions.slice(0, 10);
+    const everyone = manage(p) && /(^|\s)@everyone\b/i.test(text);
+    if (everyone) data.everyone = true;
     await addDoc(collection(db, "sharedProjects", p.id, "threads", tid, "messages"), data);
     ui.box.value = ""; ui.box.style.height = "auto";
+    picked.clear(); hideSuggest();
     say("");
     markSeen(p.id, tid);
-    bump(p, tid, mentions);
+    bump(p, tid, mentions, everyone);
   } catch (e) {
     if (cur === mine) say("Couldn't send. Check your connection, and that the chat rules are published in Firebase.");
   }
@@ -411,6 +484,7 @@ function openChat(p, tid) {
 }
 
 function close() {
+  picked.clear();
   if (cur && cur.unsub) cur.unsub();
   cur = null;
   if (ui) ui.root.hidden = true;
@@ -433,14 +507,14 @@ function button(p) {
   const u = unreadFor(p);
   const b = mk("button", "secondary chat-open-btn");
   b.type = "button";
-  b.appendChild(mk("span", "", "Open chat"));
+  b.appendChild(mk("span", "", "Team chat"));
   if (u.threads.size) b.appendChild(mk("span", "chip sp-ready", u.mention ? "@ you \u00b7 " + u.threads.size + " new" : u.threads.size + " new"));
   b.onclick = function () { openChat(p, ""); };
   return b;
 }
 function stageButton(p, stage) {
   const u = unreadFor(p);
-  const b = mk("button", "secondary sp-x chat-stage-btn", u.threads.has(stage.id) ? "Discuss \u25cf" : "Discuss");
+  const b = mk("button", "secondary chat-stage-btn", u.threads.has(stage.id) ? "Chat about this stage \u25cf" : "Chat about this stage");
   b.type = "button";
   b.setAttribute("aria-label", "Open the chat thread for " + stage.name);
   b.onclick = function () { openChat(p, stage.id); };

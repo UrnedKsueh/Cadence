@@ -153,10 +153,11 @@
   <div class="panel" id="panel-projects" role="tabpanel" aria-labelledby="tab-projects" tabindex="-1" hidden>
   <section id="sharedSection" aria-labelledby="sharedTitle" hidden>
     <h2 id="sharedTitle">Shared projects</h2>
-    <p class="hint">Projects your team works on together. Each stage has an owner and a status.</p>
+    <p class="hint">Your team's projects. Open one to see who does what, update your stage, and chat with the team.</p>
     <details class="shots add-piece" id="sharedAdd" hidden>
       <summary>New shared project</summary>
       <form id="sharedForm" autocomplete="off">
+        <p class="hint" id="sharedOwnerNote" hidden>You will be the owner. You choose who joins and who does which stage. Teachers and admins can see all shared projects.</p>
         <label for="sharedName">Project name</label>
         <input id="sharedName" class="field" placeholder="e.g. Class short film" required maxlength="80" enterkeyhint="done">
         <label for="sharedCourse">Course (optional)</label>
@@ -377,7 +378,6 @@
   <div class="panel" id="panel-resources" role="tabpanel" aria-labelledby="tab-resources" tabindex="-1" hidden>
   <section aria-labelledby="resourcesTitle">
     <h2 id="resourcesTitle">Resources</h2>
-    <p class="hint">Tutorials, references and tools picked for Cadence students. Only signed-in students can see this.</p>
     <div class="res-toolbar">
       <input id="resSearch" class="field" type="search" placeholder="Search resources" aria-label="Search resources">
       <div class="res-pills" id="resPills" role="group" aria-label="Filter by category"></div>

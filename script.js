@@ -883,6 +883,13 @@ function setNotifOpen(open) {
   if (open) panel.focus();
 }
 
+const NOTIF_ICONS = {
+  task: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l4 4 10-10"/></svg>',
+  deadline: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 3h6"/></svg>',
+  project: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+  announcement: '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10v4h3l7 4V6l-7 4zM18 9a4 4 0 0 1 0 6"/></svg>'
+};
+
 function renderNotifications() {
   const items = buildNotifications();
   // Forget read marks for items that no longer apply (done, deleted, rescheduled)
@@ -908,15 +915,27 @@ function renderNotifications() {
 
     const main = el("button", "notif-main");
     main.type = "button";
-    main.appendChild(el("span", "notif-dot"));
+    const icon = el("span", "notif-icon notif-" + n.kind);
+    icon.innerHTML = NOTIF_ICONS[n.kind] || NOTIF_ICONS.deadline;
+    main.appendChild(icon);
     const body = el("span", "notif-body");
-    body.appendChild(el("strong", "", n.title));
-    if (n.note) body.appendChild(el("small", "", n.note));
-    else {
-      const kind = n.kind === "project" ? "Project" : "Deadline";
-      body.appendChild(el("small", "", kind + " · " + describe(n.left) + (n.course ? " · " + n.course : "")));
+    let title = n.title, sub = "";
+    if (n.kind === "task") {
+      const cut = title.indexOf(" \u00b7 ");
+      if (cut > 0) { sub = title.slice(cut + 3); title = title.slice(0, cut); }
+      body.appendChild(el("strong", "", title));
+      body.appendChild(el("small", "", sub));
+      if (n.note) body.appendChild(el("span", "notif-chip" + (n.late ? " late" : ""), n.note));
+    } else if (n.kind === "announcement") {
+      body.appendChild(el("strong", "", title));
+      body.appendChild(el("small", "", "From your teacher"));
+    } else {
+      body.appendChild(el("strong", "", title));
+      if (n.course) body.appendChild(el("small", "", n.course));
+      body.appendChild(el("span", "notif-chip" + (n.late ? " late" : ""), describe(n.left)));
     }
     main.appendChild(body);
+    if (isUnread) main.appendChild(el("span", "notif-dot"));
     main.onclick = function () {
       if (notifRead.indexOf(n.key) < 0) { notifRead.push(n.key); saveNotifRead(); }
       setNotifOpen(false);
