@@ -720,6 +720,7 @@ function render() {
   const list = $("sharedList");
   list.textContent = "";
   projects.forEach(function (p) { list.appendChild(card(p)); });
+  if (window.CadenceChat && window.CadenceChat.inbox) window.CadenceChat.inbox($("chatInbox"), projects, myTasks().length);
   const empty = $("sharedEmpty");
   empty.hidden = projects.length > 0 || !me;
   empty.querySelector("p").textContent = admin
@@ -825,5 +826,7 @@ window.CadenceSharedProjects = {
   uid: function () { return me ? me.uid : ""; },
   reload: function () { return load(true); },
   rerender: function () { render(); },
+  patch: patch,
+  addPeople: addPeople,
   show: showProject
 };

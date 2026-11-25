@@ -338,7 +338,14 @@ function renderProjects() {
   const list = $("projectList");
   list.innerHTML = "";
 
-  const visible = projects.filter(matchesFilter);
+  // Unfinished first, soonest due date first; delivered projects sink to the bottom
+  const lastStage = STAGES.length - 1;
+  const visible = projects.filter(matchesFilter).sort(function (a, b) {
+    const fa = a.stage >= lastStage, fb = b.stage >= lastStage;
+    if (fa !== fb) return fa ? 1 : -1;
+    const da = a.due || "9999", db = b.due || "9999";
+    return da < db ? -1 : da > db ? 1 : 0;
+  });
   $("projectEmpty").hidden = visible.length > 0;
 
   visible.forEach(function (p) {
@@ -360,20 +367,10 @@ function renderProjects() {
     }
 
     const li = el("li", "project");
+    const last = STAGES.length - 1;
 
     const top = el("div", "project-top");
     const percent = el("span", "percent", p.progress + "%");
-    const remove = el("button", "remove", "✕");
-    remove.type = "button";
-    remove.setAttribute("aria-label", "Delete \"" + p.name + "\"");
-    remove.onclick = function () {
-      const n = p.shots.length;
-      if (!confirm("Delete \"" + p.name + "\"" + (n ? " and its " + plural(n, "shot") : "") + "? This can't be undone.")) return;
-      projects = projects.filter(function (x) { return x.id !== p.id; });
-      store(KEYS.projects, projects);
-      renderAll();
-    };
-
     const title = el("div", "pname");
     title.appendChild(el("span", "pname-text", p.name));
     const tags = el("div", "tags");
@@ -384,31 +381,79 @@ function renderProjects() {
     const tileColors = ["tint-a", "tint-b", "tint-c"];
     const tile = el("div", "proj-tile " + tileColors[(p.name.length + p.stage) % 3], (p.name.trim().charAt(0) || "P").toUpperCase());
 
+    const menuOpen = openMenus.has(p.id);
+    const more = el("button", "remove proj-more", "⋯");
+    more.type = "button";
+    more.setAttribute("aria-label", "More actions for \"" + p.name + "\"");
+    more.setAttribute("aria-expanded", menuOpen ? "true" : "false");
+    more.onclick = function () {
+      if (openMenus.has(p.id)) openMenus.delete(p.id); else openMenus.add(p.id);
+      renderAll();
+    };
+
     top.appendChild(tile);
     top.appendChild(title);
     top.appendChild(percent);
-    top.appendChild(editButton(p.name, p.id));
-    top.appendChild(remove);
+    top.appendChild(more);
+    li.appendChild(top);
+
+    if (menuOpen) {
+      const acts = el("div", "proj-actions");
+      const edit = el("button", "secondary", "Edit details");
+      edit.type = "button";
+      edit.onclick = function () { openMenus.delete(p.id); editingId = p.id; renderAll(); };
+      const del = el("button", "secondary proj-delete", "Delete project");
+      del.type = "button";
+      del.onclick = function () {
+        const n = p.shots.length;
+        if (!confirm("Delete \"" + p.name + "\"" + (n ? " and its " + plural(n, "shot") : "") + "? This can't be undone.")) return;
+        projects = projects.filter(function (x) { return x.id !== p.id; });
+        openMenus.delete(p.id);
+        store(KEYS.projects, projects);
+        renderAll();
+      };
+      acts.appendChild(edit); acts.appendChild(del);
+      li.appendChild(acts);
+    }
 
     const bar = el("div", "bar");
     const fill = el("div", "fill");
     fill.style.width = p.progress + "%";
     bar.appendChild(fill);
 
-    const stageLabel = el("label", "", "Pipeline stage");
-    const stageSelect = document.createElement("select");
-    stageSelect.className = "field stage";
-    STAGES.forEach(function (name, i) { stageSelect.appendChild(new Option((i + 1) + ". " + name, i)); });
-    stageSelect.value = p.stage;
-    stageSelect.onchange = function () {
-      p.stage = Number(stageSelect.value);
-      p.progress = Math.round(p.stage / (STAGES.length - 1) * 100);
+    const setStage = function (n) {
+      p.stage = Math.min(last, Math.max(0, n));
+      p.progress = Math.round(p.stage / last * 100);
       store(KEYS.projects, projects);
       renderAll();
     };
-    stageLabel.appendChild(stageSelect);
 
-    li.appendChild(top);
+    // One-tap stepper: the common move is "go to the next stage"
+    const stepper = el("div", "proj-stepper");
+    const back = el("button", "secondary proj-step-back", "←");
+    back.type = "button";
+    back.disabled = p.stage === 0;
+    back.setAttribute("aria-label", p.stage > 0 ? "Back to " + STAGES[p.stage - 1] : "Already at the first stage");
+    back.onclick = function () { setStage(p.stage - 1); };
+    const where = el("div", "proj-where");
+    where.appendChild(el("strong", "", STAGES[p.stage]));
+    where.appendChild(el("small", "", "Stage " + (p.stage + 1) + " of " + STAGES.length));
+    const next = el("button", "proj-step-next", p.stage < last ? "Next: " + STAGES[p.stage + 1] : "Delivered ✓");
+    next.type = "button";
+    next.disabled = p.stage >= last;
+    next.onclick = function () { setStage(p.stage + 1); };
+    stepper.appendChild(back); stepper.appendChild(where); stepper.appendChild(next);
+
+    const jump = el("details", "proj-jump");
+    jump.appendChild(el("summary", "", "Jump to a stage"));
+    const stageSelect = document.createElement("select");
+    stageSelect.className = "field stage";
+    stageSelect.setAttribute("aria-label", "Pipeline stage");
+    STAGES.forEach(function (name, i) { stageSelect.appendChild(new Option((i + 1) + ". " + name, i)); });
+    stageSelect.value = p.stage;
+    stageSelect.onchange = function () { setStage(Number(stageSelect.value)); };
+    jump.appendChild(stageSelect);
+
     if (p.due) {
       const left = daysLeft(p.due);
       const due = el("small", "pdue", describe(left));
@@ -419,7 +464,8 @@ function renderProjects() {
       li.appendChild(due);
     }
     li.appendChild(bar);
-    li.appendChild(stageLabel);
+    li.appendChild(stepper);
+    li.appendChild(jump);
     if (p.stage === STAGES.length - 1) {
       const already = showcase.some(function (s) { return s.title === p.name && s.course === p.course; });
       const toShow = el("button", "secondary", already ? "In Showcase" : "Add to Showcase");
@@ -452,6 +498,7 @@ function renderProjects() {
 }
 
 const openProjects = new Set();
+const openMenus = new Set();
 const openShots = new Set();
 const openLists = new Set();
 
