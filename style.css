@@ -1625,7 +1625,7 @@ strong.tap:hover { text-decoration: underline; }
 .chat-saved-pick { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 60vw; }
 
 /* ---- Unread badge on the Projects tab ---- */
-#tab-projects { position: relative; }
+#tab-projects, #projectsBtn { position: relative; }
 .tab-badge { position: absolute; top: 2px; left: calc(50% + 6px); min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; border-radius: 999px; background-color: var(--accent); color: var(--bg); font-size: 0.65rem; font-weight: 700; line-height: 1; pointer-events: none; }
 .tab-badge.mention { background-color: var(--warn); }
 
@@ -2194,3 +2194,50 @@ main:has(#panel-home:not([hidden])) header.top { margin-bottom: 14px; position: 
   /* The side card no longer has to sit below a floating pill, so it lines up with the post card */
   .home-side { margin-top: 0; top: 16px; max-height: calc(100vh - 32px); }
 }
+
+
+/* ===== v20: no bottom bar, no side rail. Home = logo, Projects = header button, the rest lives in the profile menu ===== */
+.tabbar, .rail-logo, .rail-name { display: none !important; }
+main { padding-bottom: calc(32px + env(safe-area-inset-bottom, 0px)) !important; }
+@media (min-width: 760px) { body { padding-left: 0; } }
+@media (min-width: 900px) and (orientation: landscape) {
+  .chat-overlay:not(.chat-saved) { bottom: 14px; }
+}
+.top-logo[role="button"] { cursor: pointer; border-radius: 10px; }
+.top-logo[role="button"]:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+/* Profile menu (Facebook-style): profile card, shortcut tiles, then rows */
+#panel-menu, #panel-settings { max-width: 640px; margin: 0 auto; }
+.menu-title { margin: 4px 0 14px; font-size: 1.5rem; letter-spacing: -0.02em; }
+.menu-profile { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 0; padding: 14px 16px; text-align: left; font: inherit; color: var(--text); background-color: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg, 16px); cursor: pointer; }
+.menu-profile:hover { filter: none; border-color: var(--muted); }
+.menu-profile .avatar.lg { flex: none; width: 56px; height: 56px; }
+.menu-who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.menu-who strong { font-size: 1.1rem; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.menu-who small { color: var(--muted); font-size: 0.88rem; }
+.menu-profile .tool-chevron { flex: none; }
+.menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 12px 0; }
+.menu-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-height: 0; padding: 14px; text-align: left; font: inherit; color: var(--text); background-color: var(--panel); border: 1px solid var(--line); border-radius: var(--r-lg, 16px); cursor: pointer; }
+.menu-tile:hover { filter: none; border-color: var(--muted); }
+.menu-tile .tool-icon { margin-bottom: 8px; }
+.menu-tile strong { font-size: 1rem; letter-spacing: -0.01em; }
+.menu-tile small { color: var(--muted); font-size: 0.82rem; }
+.menu-row { margin-top: 0; }
+.menu-back-row { margin-bottom: 4px; }
+#panel-settings .soc-h { margin: 14px 0 10px; }
+
+/* Account dropdown (avatar menu) */
+.acct-wrap { position: relative; flex: none; }
+.acct-menu { position: absolute; top: calc(100% + 10px); right: 0; z-index: 40; width: min(320px, calc(100vw - 28px)); padding: 8px; background-color: var(--panel); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 18px 44px rgba(0, 0, 0, 0.3); }
+.acct-menu[hidden] { display: none; }
+.acct-profile, .acct-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 0; padding: 10px; text-align: left; font: inherit; color: var(--text); background: transparent; border: 0; border-radius: 12px; cursor: pointer; }
+.acct-profile:hover, .acct-row:hover { background-color: color-mix(in srgb, var(--text) 8%, transparent); filter: none; }
+.acct-profile .avatar { flex: none; width: 40px; height: 40px; }
+.acct-who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.acct-who strong { font-size: 1rem; overflow-wrap: anywhere; }
+.acct-who small { color: var(--muted); font-size: 0.82rem; }
+.acct-sep { border: 0; border-top: 1px solid var(--line); margin: 6px 4px; }
+.acct-ico { flex: none; width: 36px; height: 36px; display: grid; place-items: center; border-radius: 999px; background-color: color-mix(in srgb, var(--text) 10%, transparent); }
+.acct-ico svg { width: 20px; height: 20px; }
+.acct-label { flex: 1; min-width: 0; font-size: 0.95rem; font-weight: 600; }
+.acct-row .tool-chevron { flex: none; color: var(--muted); }

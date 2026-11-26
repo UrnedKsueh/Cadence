@@ -1,9 +1,11 @@
 (function () {
   "use strict";
   const tabs = Array.from(document.querySelectorAll(".tab"));
-  // Tools and Profile have no nav button: they open from the icons in the header.
-  const names = tabs.map(function (t) { return t.dataset.tab; }).concat("tools", "profile");
-  const toolsBtn = document.getElementById("toolsBtn");
+  // No bottom nav: Home is the logo, Projects is a header button, and Tools, Resources, Profile and Settings live in the profile menu.
+  const names = tabs.map(function (t) { return t.dataset.tab; }).concat("tools", "profile", "menu", "settings");
+  const MENU_FAMILY = ["menu", "profile", "tools", "settings", "resources"];
+  const projectsBtn = document.getElementById("projectsBtn");
+  const avatarBtn = document.getElementById("avatarBtn");
   const KEY = "cadence:lastTab";
 
   function show(name, focusTab) {
@@ -23,8 +25,8 @@
     });
     // When Tools or Profile is open no tab is selected; keep the first one reachable by keyboard.
     if ((name === "profile" || name === "tools") && tabs.length) tabs[0].tabIndex = 0;
-    toolsBtn.classList.toggle("on", name === "tools");
-    toolsBtn.setAttribute("aria-pressed", name === "tools" ? "true" : "false");
+    projectsBtn.setAttribute("aria-pressed", name === "projects" ? "true" : "false");
+    avatarBtn.setAttribute("aria-pressed", MENU_FAMILY.indexOf(name) >= 0 ? "true" : "false");
     try { localStorage.setItem(KEY, name); } catch (e) {}
     if (location.hash !== "#" + name) history.replaceState(null, "", "#" + name);
     const target = jumpTo && document.getElementById(jumpTo);
@@ -62,10 +64,60 @@
   document.querySelectorAll("[data-tool-back]").forEach(function (b) {
     b.addEventListener("click", function () { openTool(null); });
   });
-  toolsBtn.addEventListener("click", function () { show("tools", false); openTool(null); });
+  // Go to a section. Sections that still have a (hidden) tab get that tab's click so their loaders run.
+  function goto(name) {
+    const tab = tabs.filter(function (t) { return t.dataset.tab === name; })[0];
+    if (tab) tab.click(); else { show(name, false); if (name === "tools") openTool(null); }
+  }
+  document.querySelectorAll("[data-goto]").forEach(function (b) {
+    b.addEventListener("click", function () { goto(b.dataset.goto); });
+  });
+  projectsBtn.addEventListener("click", function () { goto("projects"); });
+  // Facebook-style account dropdown instead of a full Menu page
+  const acct = document.getElementById("acctMenu");
+  function acctOpen(on) {
+    acct.hidden = !on;
+    avatarBtn.setAttribute("aria-expanded", on ? "true" : "false");
+  }
+  avatarBtn.addEventListener("click", function (e) { e.stopPropagation(); acctOpen(acct.hidden); });
+  acct.addEventListener("click", function (e) {
+    e.stopPropagation();
+    if (e.target.closest("[data-goto]")) acctOpen(false);
+  });
+  document.addEventListener("click", function () { acctOpen(false); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !acct.hidden) { acctOpen(false); avatarBtn.focus(); } });
+  // Display & accessibility flips the same light/dark switch as Settings
+  const acctTheme = document.getElementById("acctThemeBtn"), acctPill = document.getElementById("acctThemePill");
+  function syncTheme() { const p = document.getElementById("themePill"); if (p) acctPill.textContent = p.textContent; }
+  acctTheme.addEventListener("click", function () { const b = document.getElementById("themeBtn"); if (b) b.click(); syncTheme(); });
+  syncTheme();
+  const tp = document.getElementById("themePill");
+  if (tp) new MutationObserver(syncTheme).observe(tp, { childList: true, characterData: true, subtree: true });
+  // Sign in / Log out follow the real buttons in Profile
+  const acctAuth = document.getElementById("acctAuthBtn"), acctAuthText = document.getElementById("acctAuthText");
+  const outBtn = document.getElementById("signOutBtn"), inBtn = document.getElementById("signInBtn");
+  function syncAuth() { acctAuthText.textContent = outBtn.hidden ? "Sign in" : "Log out"; }
+  acctAuth.addEventListener("click", function () { acctOpen(false); (outBtn.hidden ? inBtn : outBtn).click(); });
+  new MutationObserver(syncAuth).observe(outBtn, { attributes: true, attributeFilter: ["hidden"] });
+  syncAuth();
+  const logo = document.getElementById("homeLogo");
+  logo.addEventListener("click", function () { goto("home"); });
+  logo.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); goto("home"); } });
 
-
-  document.getElementById("avatarBtn").addEventListener("click", function () { show("profile", false); });
+  // The menu card shows the same picture and name as the header and profile
+  (function mirror() {
+    const src = document.getElementById("headerAvatar"), dst = document.getElementById("menuAvatar"), dst2 = document.getElementById("acctAvatar");
+    const nameSrc = document.getElementById("profileName"), nameDst = document.getElementById("menuName"), nameDst2 = document.getElementById("acctName");
+    function sync() {
+      dst.innerHTML = src.innerHTML; dst.style.cssText = src.style.cssText; dst.className = "avatar lg " + src.className.replace(/\bavatar\b|\blg\b/g, "");
+      dst2.innerHTML = src.innerHTML; dst2.style.cssText = src.style.cssText; dst2.className = "avatar " + src.className.replace(/\bavatar\b|\blg\b/g, "");
+      nameDst.textContent = nameSrc.textContent; nameDst2.textContent = nameSrc.textContent;
+    }
+    const opts = { childList: true, characterData: true, subtree: true, attributes: true };
+    new MutationObserver(sync).observe(src, opts);
+    new MutationObserver(sync).observe(nameSrc, opts);
+    sync();
+  })();
   window.addEventListener("hashchange", function () { show(location.hash.slice(1), false); });
 
   let start = location.hash.slice(1);

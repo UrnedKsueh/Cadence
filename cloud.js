@@ -40,7 +40,7 @@ function showProfile(user) {
   $("profileEmail").textContent = user ? (user.email || "") : "Not signed in";
   paintAvatar($("profileAvatar"), user);
   paintAvatar($("headerAvatar"), user);
-  $("avatarBtn").setAttribute("aria-label", user ? "Open profile for " + (user.displayName || user.email) : "Open profile");
+  $("avatarBtn").setAttribute("aria-label", user ? "Account menu for " + (user.displayName || user.email) : "Account menu");
 }
 
 const app = initializeApp(firebaseConfig);
