@@ -784,31 +784,33 @@ function openForm(id) {
   if (d.open) { const f = d.querySelector("input"); if (f) f.focus(); d.scrollIntoView({ block: "nearest" }); }
 }
 $("sharedSearch").addEventListener("input", function (e) { pjFilter = e.target.value.trim().toLowerCase(); render(); });
-$("sharedNewBtn").onclick = function () { $("sharedJoin").open = false; openForm("sharedAdd"); };
-$("sharedJoinBtn").onclick = function () { $("sharedAdd").open = false; openForm("sharedJoin"); };
+$("sharedJoinBtn").onclick = function () { $("sharedAdd").open = false; $("projectAdd").open = false; openForm("sharedJoin"); };
 
 function render() {
   renderTasks();
   window.dispatchEvent(new CustomEvent("cadence:sharedprojects:changed"));
-  $("sharedSection").hidden = !me;
   $("sharedAdd").hidden = !me;
   $("sharedSection").classList.toggle("has-projects", projects.length > 0);
   $("sharedOwnerNote").hidden = admin;
   $("sharedJoin").hidden = !me || admin;
   $("sharedJoinBtn").hidden = !me || admin;
-  $("sharedNewBtn").hidden = !me;
   const list = $("sharedList");
   list.textContent = "";
   renderDue();
   const shown = projects.filter(function (p) { return !pjFilter || (p.name + " " + (p.course || "")).toLowerCase().indexOf(pjFilter) >= 0; });
   shown.forEach(function (p) { list.appendChild(row(p)); });
   if (window.CadenceChat && window.CadenceChat.inbox) window.CadenceChat.inbox($("chatInbox"), projects);
-  const empty = $("sharedEmpty");
-  empty.hidden = projects.length > 0 || !me;
-  empty.querySelector("p").textContent = admin
-    ? "No shared projects yet. Tap New shared project above to start one."
-    : "No shared projects yet. Start one with New shared project, or tap Join with a code if you were given one.";
+  updateEmpty();
 }
+function updateEmpty() {
+  const empty = $("sharedEmpty");
+  const priv = window.CadencePrivateCount || 0;
+  empty.hidden = projects.length > 0 || priv > 0;
+  empty.querySelector("p").textContent = (!me || admin)
+    ? "No projects yet. Tap + to start one."
+    : "No projects yet. Tap + to start one, or tap Join if you were given a code.";
+}
+window.addEventListener("cadence:privateprojects:changed", updateEmpty);
 
 TEMPLATES.forEach(function (t, i) { $("sharedTemplate").appendChild(new Option(t.stages.length ? t.name + " (" + t.stages.length + " stages)" : t.name, String(i))); });
 

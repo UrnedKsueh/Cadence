@@ -340,13 +340,19 @@ function renderProjects() {
 
   // Unfinished first, soonest due date first; delivered projects sink to the bottom
   const lastStage = STAGES.length - 1;
-  const visible = projects.filter(matchesFilter).sort(function (a, b) {
+  const q = ($("sharedSearch") ? $("sharedSearch").value : "").trim().toLowerCase();
+  const visible = projects.filter(matchesFilter).filter(function (p) {
+    return !q || (p.name + " " + (p.course || "")).toLowerCase().indexOf(q) >= 0;
+  }).sort(function (a, b) {
     const fa = a.stage >= lastStage, fb = b.stage >= lastStage;
     if (fa !== fb) return fa ? 1 : -1;
     const da = a.due || "9999", db = b.due || "9999";
     return da < db ? -1 : da > db ? 1 : 0;
   });
-  $("projectEmpty").hidden = visible.length > 0;
+  const sub = $("projectSub");
+  if (sub) sub.hidden = visible.length === 0;
+  window.CadencePrivateCount = projects.length;
+  window.dispatchEvent(new CustomEvent("cadence:privateprojects:changed"));
 
   visible.forEach(function (p) {
     if (p.id === editingId) {
@@ -858,6 +864,34 @@ $("projectCancel").onclick = function () {
   $("projectCourse").dispatchEvent(new Event("input"));
   $("projectAdd").open = false;
 };
+
+// The + button offers a shared or a private project
+(function () {
+  const plus = $("sharedNewBtn"), menu = $("pjMenu");
+  function closeMenu() { menu.hidden = true; plus.setAttribute("aria-expanded", "false"); }
+  function openForm(id) {
+    ["sharedAdd", "sharedJoin", "projectAdd"].forEach(function (x) { if (x !== id && $(x)) $(x).open = false; });
+    const d = $(id);
+    if (!d) return;
+    d.open = true;
+    const f = d.querySelector("input");
+    if (f) f.focus();
+    d.scrollIntoView({ block: "nearest" });
+  }
+  plus.onclick = function (e) {
+    e.stopPropagation();
+    if ($("sharedAdd").hidden) { openForm("projectAdd"); return; } // signed out: private only
+    const show = menu.hidden;
+    menu.hidden = !show;
+    plus.setAttribute("aria-expanded", String(show));
+    if (show) { const first = menu.querySelector("button"); if (first) first.focus(); }
+  };
+  $("pjMenuShared").onclick = function () { closeMenu(); openForm("sharedAdd"); };
+  $("pjMenuPrivate").onclick = function () { closeMenu(); openForm("projectAdd"); };
+  document.addEventListener("click", function (e) { if (!menu.hidden && !menu.contains(e.target)) closeMenu(); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape" && !menu.hidden) { closeMenu(); plus.focus(); } });
+  $("sharedSearch").addEventListener("input", renderProjects);
+})();
 
 
 // ===== Notifications =====

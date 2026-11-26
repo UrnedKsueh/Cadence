@@ -151,12 +151,18 @@
   </div>
 
   <div class="panel" id="panel-projects" role="tabpanel" aria-labelledby="tab-projects" tabindex="-1" hidden>
-  <section id="sharedSection" aria-labelledby="sharedTitle" hidden>
+  <section id="sharedSection" aria-labelledby="sharedTitle">
     <h2 id="sharedTitle">Projects</h2>
     <div class="pj-bar">
       <input id="sharedSearch" class="field pj-search" type="search" placeholder="Search projects" aria-label="Search projects" autocomplete="off">
       <button type="button" class="secondary pj-join" id="sharedJoinBtn" aria-label="Join with a code" title="Join with a code">Join</button>
-      <button type="button" class="pj-plus" id="sharedNewBtn" aria-label="New shared project">+</button>
+      <div class="pj-plus-wrap">
+        <button type="button" class="pj-plus" id="sharedNewBtn" aria-label="New project" aria-haspopup="menu" aria-expanded="false" aria-controls="pjMenu">+</button>
+        <div class="pj-menu" id="pjMenu" role="menu" hidden>
+          <button type="button" role="menuitem" id="pjMenuShared"><span>Shared project</span><small>Work with a team. Invite members and assign stages.</small></button>
+          <button type="button" role="menuitem" id="pjMenuPrivate"><span>Private project</span><small>Only you can see it.</small></button>
+        </div>
+      </div>
     </div>
     <div id="pjDue" class="pj-due" hidden></div>
     <div id="chatInbox" class="chat-inbox" hidden></div>
@@ -186,16 +192,10 @@
         <div class="form-actions"><button type="submit">Join project</button></div>
       </form>
     </details>
-    <p class="hint show-msg" id="sharedMsg" role="status" aria-live="polite" hidden></p>
-    <ul id="sharedList"></ul>
-    <div class="empty show-empty" id="sharedEmpty" hidden><p></p></div>
-  </section>
-  <section aria-labelledby="projectsTitle">
-    <h2 id="projectsTitle">My private projects</h2>
-    <p class="hint">Only you can see these. Track each one through the pipeline and break it into shots.</p>
-    <details class="shots add-piece" id="projectAdd">
-      <summary>New project</summary>
+    <details class="shots add-piece pj-form" id="projectAdd">
+      <summary>New private project</summary>
       <form id="projectForm" autocomplete="off">
+        <p class="hint">Private projects are only visible to you.</p>
         <label for="projectName">Project name</label>
         <input id="projectName" class="field" placeholder="e.g. Short film" required maxlength="80" enterkeyhint="done">
         <label for="projectCourse">Course (optional)</label>
@@ -208,11 +208,12 @@
         </div>
       </form>
     </details>
+    <p class="hint show-msg" id="sharedMsg" role="status" aria-live="polite" hidden></p>
     <p class="hint show-msg" id="projectMsg" role="status" aria-live="polite" hidden></p>
+    <ul id="sharedList"></ul>
+    <h3 class="pj-sub" id="projectSub" hidden>Private</h3>
     <ul id="projectList"></ul>
-    <div class="empty show-empty" id="projectEmpty" hidden>
-      <p>No projects yet. Tap New project above to start one.</p>
-    </div>
+    <div class="empty show-empty" id="sharedEmpty" hidden><p></p></div>
   </section>
   </div>
 

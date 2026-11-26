@@ -374,8 +374,9 @@ function renderPeople() {
   if (!cur || !ui) return;
   const p = cur.p, box = ui.people;
   box.textContent = "";
-  box.appendChild(mk("h3", "chat-people-title", "People \u00b7 " + p.members.length));
-  p.members.forEach(function (uid) {
+  const others = p.members.filter(function (uid) { return !(me && uid === me.uid); });
+  box.appendChild(mk("h3", "chat-people-title", "People \u00b7 " + others.length));
+  others.forEach(function (uid) {
     const name = (p.names && p.names[uid]) || "Member";
     const r = mk("div", "chat-person");
     r.appendChild(avatarFor(uid, name, "chat-ava"));
@@ -487,13 +488,51 @@ function fillPicker() {
   txt.appendChild(mk("strong", "", who));
   txt.appendChild(mk("small", "", cur.p.name));
   card.appendChild(txt);
-  const x = mk("button", "secondary chat-me-close", "Close");
+  const x = mk("button", "secondary chat-me-bell");
   x.type = "button";
-  x.setAttribute("aria-label", "Close project workspace");
-  x.onclick = close;
+  x.setAttribute("aria-label", "Notifications");
+  x.setAttribute("aria-haspopup", "dialog");
+  x.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span class="chat-me-bell-count" hidden></span>';
+  x.onclick = function (e) { e.stopPropagation(); toggleNotifFromChat(); };
   card.appendChild(x);
   panel.appendChild(card);
+  syncBellCount();
 }
+
+// ---- Notifications from inside the workspace ----
+// The page's own notification panel is reused: it is moved to the body while the workspace is open
+let notifHome = null, notifWatch = null;
+function syncBellCount() {
+  const src = document.getElementById("bellCount");
+  const n = src && !src.hidden ? src.textContent.trim() : "";
+  document.querySelectorAll(".chat-me-bell-count").forEach(function (b) { b.textContent = n; b.hidden = !n; });
+}
+function toggleNotifFromChat() {
+  const panel = document.getElementById("notifPanel"), bell = document.getElementById("bellBtn");
+  if (!panel || !bell) return;
+  if (!notifHome) notifHome = panel.parentNode;
+  const wasOpen = !panel.hidden;
+  bell.click(); // runs the page's own open/close logic
+  if (wasOpen || panel.hidden) return;
+  panel.classList.add("in-chat");
+  document.body.appendChild(panel);
+  if (!notifWatch) {
+    notifWatch = new MutationObserver(function () {
+      if (!panel.hidden) return;
+      panel.classList.remove("in-chat");
+      if (notifHome && panel.parentNode !== notifHome) notifHome.appendChild(panel);
+    });
+    notifWatch.observe(panel, { attributes: true, attributeFilter: ["hidden"] });
+    // opening something from a notification leaves the workspace so the result is visible
+    panel.addEventListener("click", function (e) {
+      if (panel.classList.contains("in-chat") && e.target.closest && e.target.closest(".notif-act.primary")) close();
+    }, true);
+  }
+}
+(function () {
+  const src = document.getElementById("bellCount");
+  if (src) new MutationObserver(syncBellCount).observe(src, { childList: true, characterData: true, subtree: true, attributes: true });
+})();
 const STAGE_CATS = [
   { name: "To do", has: ["To do"] },
   { name: "In progress", has: ["In progress", "Review", "Needs changes"] },
@@ -1482,6 +1521,25 @@ function drawRail() {
     b.onclick = function () { if (p.id !== cur.p.id) openChat(p, ""); };
     rail.appendChild(b);
   });
+  const ICO = function (d) { return '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + d + '</svg>'; };
+  const add = mk("button", "chat-rail-btn chat-rail-add");
+  add.type = "button";
+  add.title = "New project";
+  add.setAttribute("aria-label", "New project");
+  add.innerHTML = ICO('<path d="M12 5v14M5 12h14"/>');
+  add.onclick = function () {
+    close();
+    if (window.showTab) window.showTab("projects");
+    setTimeout(function () { const n = document.getElementById("sharedNewBtn"); if (n) n.click(); }, 60);
+  };
+  rail.appendChild(add);
+  const home = mk("button", "chat-rail-btn chat-rail-home");
+  home.type = "button";
+  home.title = "Home";
+  home.setAttribute("aria-label", "Home");
+  home.innerHTML = ICO('<path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/>');
+  home.onclick = function () { close(); if (window.showTab) window.showTab("home"); };
+  rail.appendChild(home);
 }
 
 function openChat(p, tid) {

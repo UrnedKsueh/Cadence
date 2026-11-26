@@ -2052,3 +2052,58 @@ button:focus:not(:focus-visible), a:focus:not(:focus-visible), summary:focus:not
 @media not all and (min-width: 900px) and (orientation: landscape) {
   #panel-projects > section[aria-labelledby="projectsTitle"] { background: none; border: 0; box-shadow: none; padding: 0; }
 }
+
+/* ===== v19: one Projects screen. The + offers shared or private ===== */
+.pj-plus-wrap { position: relative; flex: none; }
+.pj-menu { position: absolute; right: 0; top: calc(100% + 8px); z-index: 30; width: min(280px, calc(100vw - 32px)); padding: 6px; display: flex; flex-direction: column; gap: 2px; background-color: var(--panel); border: 1px solid var(--line); border-radius: 16px; box-shadow: 0 12px 32px rgba(0, 0, 0, 0.2); }
+.pj-menu[hidden] { display: none; }
+.pj-menu button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; width: 100%; min-height: 56px; padding: 10px 12px; text-align: left; font: inherit; font-weight: 600; color: var(--text); background: none; border: 0; border-radius: 12px; }
+.pj-menu button small { color: var(--muted); font-weight: 400; font-size: 0.8rem; line-height: 1.3; }
+.pj-menu button:hover, .pj-menu button:focus-visible { filter: none; background-color: var(--tint-a); }
+.pj-sub { margin: 18px 0 6px; padding: 0 4px; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.pj-sub[hidden] { display: none; }
+#projectList { list-style: none; margin: 0; padding: 0; }
+#projectList .project { margin: 0 0 10px; }
+
+/* Landscape: a full-width board. Title and toolbar share a row, lists flow into columns */
+@media (min-width: 900px) and (orientation: landscape) {
+  #panel-projects, #panel-projects:not([hidden]) { display: block; }
+  #sharedSection, #sharedSection.has-projects {
+    position: static; max-height: none; overflow: visible; padding: 20px 24px 24px;
+    display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 24px; align-items: center;
+  }
+  #sharedSection > * { grid-column: 1 / -1; min-width: 0; }
+  #sharedSection > #sharedTitle { grid-column: 1; grid-row: 1; margin: 0 0 14px; }
+  #sharedSection > .pj-bar { grid-column: 2; grid-row: 1; justify-self: end; width: 100%; max-width: 520px; margin: 0 0 14px; }
+  #sharedList, #projectList { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 10px 14px; align-items: start; }
+  #projectList .project { margin: 0; }
+  .pj-row-btn { border: 1px solid var(--line); background-color: var(--bg); padding: 10px 14px; }
+  .pj-row-btn:hover, .pj-row-btn:focus-visible { border-color: var(--accent); }
+  .pj-sub { margin-top: 22px; }
+  .chat-inbox-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 8px 14px; }
+  .pj-due-card { flex: 0 0 220px; }
+  #sharedSection .pj-form[open] { max-width: 560px; }
+  #sharedEmpty { grid-column: 1 / -1; }
+}
+
+/* ===== v19: landscape workspace is fullscreen, with Home, + and notifications ===== */
+.chat-rail-btn, .chat-me-bell { display: none; }
+@media (min-width: 900px) and (orientation: landscape) {
+  .chat-overlay:not(.chat-saved) { inset: 0; inset-block: 0; border-radius: 0; border: 0; box-shadow: none; z-index: 1000; }
+  /* The sidebar already names the project and channel, so the header keeps only Search and Stages */
+  .chat-overlay:not(.chat-saved) > .chat-head > .chat-back,
+  .chat-overlay:not(.chat-saved) > .chat-head .chat-title-btn,
+  .chat-overlay:not(.chat-saved) > .chat-head .chat-pick-btn { display: none; }
+  .chat-overlay:not(.chat-saved) > .chat-head { grid-template-columns: minmax(0, 1fr) auto auto; justify-items: end; }
+  .chat-overlay:not(.chat-saved) > .chat-head > .chat-find { grid-column: 2; }
+  .chat-overlay:not(.chat-saved) > .chat-head > .chat-stages { grid-column: 3; }
+  /* Rail buttons: + sits under the project tiles, Home is pinned to the bottom edge */
+  .chat-rail-btn { display: grid; place-items: center; flex: none; width: 48px; height: 48px; padding: 0; border: 0; border-radius: 24px; color: #cfd6e6; background-color: rgba(255, 255, 255, 0.08); transition: border-radius .15s ease, background-color .15s; }
+  .chat-rail-btn:hover { filter: none; border-radius: 16px; background-color: rgba(255, 255, 255, 0.16); color: #ffffff; }
+  .chat-rail-home { margin-top: auto; }
+  /* Docked profile card: notifications replace Close */
+  .chat-me-bell { position: relative; display: grid; place-items: center; flex: none; width: 40px; height: 40px; min-height: 0; padding: 0; border-radius: 12px; }
+  .chat-me-bell-count { position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 9px; background-color: #e5484d; color: #ffffff; font-size: 0.7rem; font-weight: 700; line-height: 18px; text-align: center; }
+  .chat-me-bell-count[hidden] { display: none; }
+}
+.notif-panel.in-chat { position: fixed; top: auto; right: auto; left: 84px; bottom: 88px; z-index: 1100; width: min(380px, calc(100vw - 100px)); }
