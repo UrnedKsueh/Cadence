@@ -708,6 +708,85 @@ function showProject(id, stageId) {
   if (window.CadenceChat && window.CadenceChat.openProject) window.CadenceChat.openProject(p, stageId || "");
 }
 
+// ---- Messages-style project list (v18) ----
+let pjFilter = "";
+const TILE_COLORS = ["#4fc3a1", "#8fa8ff", "#f0b44c", "#ff8a80", "#c792ea", "#5cc8e8"];
+function tileColor(name) {
+  let h = 0; for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return TILE_COLORS[h % TILE_COLORS.length];
+}
+function openProjectChat(p) {
+  if (window.CadenceChat && window.CadenceChat.open) window.CadenceChat.open(p, "");
+  else showProject(p.id);
+}
+function row(p) {
+  const li = mk("li", "pj-row");
+  const btn = mk("button", "pj-row-btn");
+  btn.type = "button";
+  const tile = mk("span", "pj-tile", (p.name.trim().charAt(0) || "?").toUpperCase());
+  const c = tileColor(p.name);
+  tile.style.color = c;
+  tile.style.backgroundColor = "color-mix(in srgb, " + c + " 22%, var(--panel))";
+  btn.appendChild(tile);
+
+  const main = mk("span", "pj-main");
+  const top = mk("span", "pj-top");
+  top.appendChild(mk("strong", "pj-name", p.name));
+  if (p.course) top.appendChild(mk("span", "pj-chip", p.course));
+  main.appendChild(top);
+  const total = p.stages.length;
+  const mine = myTasks().filter(function (t) { return t.p === p; })[0];
+  let preview = total ? doneCount(p) + " of " + total + " stages done" : "No stages yet";
+  if (mine) preview = (mine.ready ? "Your turn: " : mine.fix ? "Needs your fix: " : "Your task: ") + mine.s.name;
+  const pv = mk("span", "pj-preview", preview);
+  if (mine) pv.classList.add("mine");
+  main.appendChild(pv);
+  const bar = mk("span", "pj-bar-line");
+  const fill = mk("span"); fill.style.width = percent(p) + "%";
+  bar.appendChild(fill);
+  main.appendChild(bar);
+  btn.appendChild(main);
+
+  const side = mk("span", "pj-side");
+  const dl = p.due ? daysUntil(p.due) : 0;
+  const d = !p.due ? "" : dl < 0 ? Math.abs(dl) + "d overdue" : dueLabel(p.due);
+  if (d) side.appendChild(mk("span", "pj-when", d));
+  const n = window.CadenceChat && window.CadenceChat.unreadFor ? window.CadenceChat.unreadFor(p).threads.size : 0;
+  if (n) side.appendChild(mk("span", "pj-badge", n > 99 ? "99+" : String(n)));
+  btn.appendChild(side);
+
+  btn.setAttribute("aria-label", p.name + ". " + preview + (d ? ". " + d : "") + (n ? ". " + n + " unread" : ""));
+  btn.onclick = function () { openProjectChat(p); };
+  li.appendChild(btn);
+  return li;
+}
+function renderDue() {
+  const box = $("pjDue");
+  if (!box) return;
+  const tasks = myTasks().slice(0, 8);
+  box.textContent = "";
+  box.hidden = tasks.length === 0;
+  tasks.forEach(function (t) {
+    const b = mk("button", "pj-due-card");
+    b.type = "button";
+    const dd = stageDue(t.p, t.s);
+    b.appendChild(mk("small", "", t.p.name));
+    b.appendChild(mk("strong", "", t.s.name));
+    b.appendChild(mk("span", "", t.ready ? "Your turn" : t.fix ? "Needs your fix" : (dd ? dueLabel(dd) : t.s.status)));
+    b.onclick = function () { showProject(t.p.id, t.s.id); };
+    box.appendChild(b);
+  });
+}
+function openForm(id) {
+  const d = $(id);
+  if (!d) return;
+  d.open = !d.open;
+  if (d.open) { const f = d.querySelector("input"); if (f) f.focus(); d.scrollIntoView({ block: "nearest" }); }
+}
+$("sharedSearch").addEventListener("input", function (e) { pjFilter = e.target.value.trim().toLowerCase(); render(); });
+$("sharedNewBtn").onclick = function () { $("sharedJoin").open = false; openForm("sharedAdd"); };
+$("sharedJoinBtn").onclick = function () { $("sharedAdd").open = false; openForm("sharedJoin"); };
+
 function render() {
   renderTasks();
   window.dispatchEvent(new CustomEvent("cadence:sharedprojects:changed"));
@@ -716,9 +795,13 @@ function render() {
   $("sharedSection").classList.toggle("has-projects", projects.length > 0);
   $("sharedOwnerNote").hidden = admin;
   $("sharedJoin").hidden = !me || admin;
+  $("sharedJoinBtn").hidden = !me || admin;
+  $("sharedNewBtn").hidden = !me;
   const list = $("sharedList");
   list.textContent = "";
-  projects.forEach(function (p) { list.appendChild(card(p)); });
+  renderDue();
+  const shown = projects.filter(function (p) { return !pjFilter || (p.name + " " + (p.course || "")).toLowerCase().indexOf(pjFilter) >= 0; });
+  shown.forEach(function (p) { list.appendChild(row(p)); });
   if (window.CadenceChat && window.CadenceChat.inbox) window.CadenceChat.inbox($("chatInbox"), projects);
   const empty = $("sharedEmpty");
   empty.hidden = projects.length > 0 || !me;

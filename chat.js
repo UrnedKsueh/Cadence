@@ -254,6 +254,9 @@ function build() {
   const people = mk("aside", "chat-people");
   people.setAttribute("aria-label", "People in this project");
   root.appendChild(head); root.appendChild(list); root.appendChild(note); root.appendChild(form); root.appendChild(drawer); root.appendChild(proj); root.appendChild(fb.box); root.appendChild(sb.box); root.appendChild(people);
+  const prail = mk("nav", "chat-prail");
+  prail.setAttribute("aria-label", "Projects");
+  root.appendChild(prail);
   document.body.appendChild(root);
 
   back.onclick = close;
@@ -291,7 +294,7 @@ function build() {
       if (sb.box.hidden) openSwitch(); else closeSwitch();
     }
   });
-  ui = { find: fb.box, fpanel: fb.panel, sw: sb.box, spanel: sb.panel, rbar: rbar, rtxt: rtxt, jump: jump, people: people, suggest: suggest, root: root, title: title, pick: pick, list: list, note: note, box: box, send: send, back: back, plus: plus, sheet: sheet, drawer: drawer, panel: panel, proj: proj, jpanel: jpanel };
+  ui = { prail: prail, find: fb.box, fpanel: fb.panel, sw: sb.box, spanel: sb.panel, rbar: rbar, rtxt: rtxt, jump: jump, people: people, suggest: suggest, root: root, title: title, pick: pick, list: list, note: note, box: box, send: send, back: back, plus: plus, sheet: sheet, drawer: drawer, panel: panel, proj: proj, jpanel: jpanel };
   return ui;
 }
 
@@ -460,9 +463,43 @@ function fillPicker() {
   if (cur.chErr) panel.appendChild(mk("p", "hint chat-chan-err", cur.chErr));
   if (cur.p.stages.length) {
     panel.appendChild(mk("p", "chat-drawer-sec", "Stages"));
-    cur.p.stages.forEach(function (s) { panel.appendChild(drawerRow({ id: s.id, label: "Stage: " + s.name }, u, "stage")); });
+    STAGE_CATS.forEach(function (cat) {
+      const list = cur.p.stages.filter(function (s) { return cat.has.indexOf(s.status) >= 0; });
+      if (!list.length) return;
+      const hasCurrent = list.some(function (s) { return s.id === cur.tid; });
+      const shut = catShut.has(cat.name) && !hasCurrent;
+      const head = mk("button", "chat-cat" + (shut ? " shut" : ""));
+      head.type = "button";
+      head.setAttribute("aria-expanded", shut ? "false" : "true");
+      head.appendChild(mk("span", "chat-cat-caret", "\u25be"));
+      head.appendChild(mk("span", "chat-cat-name", cat.name));
+      head.appendChild(mk("span", "chat-cat-count", String(list.length)));
+      head.onclick = function () { if (catShut.has(cat.name)) catShut.delete(cat.name); else catShut.add(cat.name); fillPicker(); };
+      panel.appendChild(head);
+      if (!shut) list.forEach(function (s) { panel.appendChild(drawerRow({ id: s.id, label: "Stage: " + s.name }, u, "stage")); });
+    });
   }
+  // Docked profile card (landscape only; hidden by CSS elsewhere)
+  const card = mk("div", "chat-me");
+  const who = (me && ((cur.p.names && cur.p.names[me.uid]) || me.displayName)) || "You";
+  card.appendChild(avatarFor(me ? me.uid : "", who, "chat-me-ava"));
+  const txt = mk("span", "chat-me-txt");
+  txt.appendChild(mk("strong", "", who));
+  txt.appendChild(mk("small", "", cur.p.name));
+  card.appendChild(txt);
+  const x = mk("button", "secondary chat-me-close", "Close");
+  x.type = "button";
+  x.setAttribute("aria-label", "Close project workspace");
+  x.onclick = close;
+  card.appendChild(x);
+  panel.appendChild(card);
 }
+const STAGE_CATS = [
+  { name: "To do", has: ["To do"] },
+  { name: "In progress", has: ["In progress", "Review", "Needs changes"] },
+  { name: "Done", has: ["Done"] }
+];
+const catShut = new Set(["Done"]);
 
 // ---- Channel management (project owner or admin) ----
 function chanSlug(v) { return String(v || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 24); }
@@ -1418,6 +1455,35 @@ async function submit() {
   if (cur === mine) setComposer();
 }
 
+
+// Landscape project rail: one tile per project, like servers in Discord
+function railColor(name) {
+  const cols = ["#4fc3a1", "#8fa8ff", "#f0b44c", "#ff8a80", "#c792ea", "#5cc8e8"];
+  let h = 0; for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return cols[h % cols.length];
+}
+function drawRail() {
+  if (!ui || !ui.prail || !cur || !sp() || !sp().list) return;
+  const rail = ui.prail;
+  rail.textContent = "";
+  const all = sp().list();
+  all.forEach(function (p) {
+    const b = mk("button", "chat-ptile" + (p.id === cur.p.id ? " on" : ""));
+    b.type = "button";
+    b.title = p.name;
+    b.setAttribute("aria-label", p.name);
+    if (p.id === cur.p.id) b.setAttribute("aria-current", "true");
+    const c = railColor(p.name);
+    b.style.color = c;
+    b.style.backgroundColor = "color-mix(in srgb, " + c + " 22%, var(--panel))";
+    b.appendChild(mk("span", "chat-ptile-ltr", (p.name.trim().charAt(0) || "?").toUpperCase()));
+    const n = unreadFor(p).threads.size;
+    if (n && p.id !== cur.p.id) b.appendChild(mk("span", "chat-ptile-badge", n > 99 ? "99+" : String(n)));
+    b.onclick = function () { if (p.id !== cur.p.id) openChat(p, ""); };
+    rail.appendChild(b);
+  });
+}
+
 function openChat(p, tid) {
   if (!me) return;
   build();
@@ -1429,6 +1495,7 @@ function openChat(p, tid) {
   document.body.classList.add("chat-open");
   const start = tid && threadsOf(p).some(function (t) { return t.id === tid; }) ? tid : "general";
   switchTo(start);
+  drawRail();
   ui.back.focus();
 }
 
@@ -1666,6 +1733,11 @@ function openProject(p, stageId) {
   if (!cur || cur.p.id !== p.id) openChat(p, stageId || "");
   showProjectSheet(stageId || "");
 }
+
+document.addEventListener("click", function (e) {
+  if (!cur || !e.target.closest) return;
+  if (e.target.closest(".tabbar .tab")) close();
+});
 
 window.CadenceChat = { openProject: openProject, notice: notice, close: close, button: button, stageButton: stageButton, open: openChat, log: log, unreadFor: unreadFor, inbox: renderInbox, tiles: tiles };
 

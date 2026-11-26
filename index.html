@@ -152,10 +152,15 @@
 
   <div class="panel" id="panel-projects" role="tabpanel" aria-labelledby="tab-projects" tabindex="-1" hidden>
   <section id="sharedSection" aria-labelledby="sharedTitle" hidden>
-    <h2 id="sharedTitle">Shared projects</h2>
-    <p class="hint">Your team's projects. Open one to see who does what, update your stage, and chat with the team.</p>
+    <h2 id="sharedTitle">Projects</h2>
+    <div class="pj-bar">
+      <input id="sharedSearch" class="field pj-search" type="search" placeholder="Search projects" aria-label="Search projects" autocomplete="off">
+      <button type="button" class="secondary pj-join" id="sharedJoinBtn" aria-label="Join with a code" title="Join with a code">Join</button>
+      <button type="button" class="pj-plus" id="sharedNewBtn" aria-label="New shared project">+</button>
+    </div>
+    <div id="pjDue" class="pj-due" hidden></div>
     <div id="chatInbox" class="chat-inbox" hidden></div>
-    <details class="shots add-piece" id="sharedAdd" hidden>
+    <details class="shots add-piece pj-form" id="sharedAdd" hidden>
       <summary>New shared project</summary>
       <form id="sharedForm" autocomplete="off">
         <p class="hint" id="sharedOwnerNote" hidden>You will be the owner. You choose who joins and who does which stage. Teachers and admins can see all shared projects.</p>
@@ -173,7 +178,7 @@
         </div>
       </form>
     </details>
-    <details class="shots add-piece" id="sharedJoin" hidden>
+    <details class="shots add-piece pj-form" id="sharedJoin" hidden>
       <summary>Join with a code</summary>
       <form id="joinForm" autocomplete="off">
         <label for="joinCode">Invite code</label>
