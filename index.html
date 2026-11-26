@@ -33,9 +33,17 @@
 
 <main id="app">
   <header class="top">
-    <div class="brand">
-      <h1><span class="logo" aria-hidden="true"></span>Cadence</h1>
-      <p class="sub">Your animation workflow, organised.</p>
+    <div class="top-left">
+      <span class="logo top-logo" aria-hidden="true"></span>
+      <button type="button" class="avatar-btn top-search-btn" id="searchBtn" aria-label="Search" aria-expanded="false" aria-controls="searchPanel"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg></button>
+      <form class="top-search" id="searchForm" role="search" autocomplete="off">
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>
+        <input id="globalSearch" type="search" placeholder="Cadence" aria-label="Search resources, posts and accounts" enterkeyhint="search" autocapitalize="off" spellcheck="false">
+        <button type="button" class="top-search-close" id="searchClose" aria-label="Close search"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </form>
+    </div>
+    <div class="brand" id="brandName">
+      <h1>Cadence</h1>
     </div>
     <div class="top-actions">
     <button type="button" class="avatar-btn bell-btn" id="toolsBtn" aria-label="Tools" aria-controls="panel-tools" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3.5 17.5a1.8 1.8 0 0 0 2.5 2.5l5.8-5.8a4 4 0 0 0 5.4-5.4l-2.6 2.6-2.2-.5-.5-2.2z"/></svg></button>
@@ -53,6 +61,14 @@
     <button type="button" class="avatar-btn" id="avatarBtn" aria-label="Open profile"><span class="avatar" id="headerAvatar"></span><span class="bell-count" id="avatarBadge" hidden>0</span></button>
     </div>
   </header>
+
+  <div class="gs-panel" id="searchPanel" role="dialog" aria-label="Search" hidden>
+    <p class="gs-head">Search for <strong id="gsQuery"></strong> in</p>
+    <button type="button" class="gs-row" data-gs="resources"><span>Resources</span><small>Guides, links and references</small></button>
+    <button type="button" class="gs-row" data-gs="projects"><span>Projects</span><small>Your shared projects</small></button>
+    <button type="button" class="gs-row" data-gs="posts"><span>Community posts</span><small>Filters the feed on Home</small></button>
+    <button type="button" class="gs-row" data-gs="people"><span>Accounts</span><small>Find a friend by handle</small></button>
+  </div>
 
   <div class="panel" id="panel-home" role="tabpanel" aria-labelledby="tab-home" tabindex="-1">
   <div id="announceBox" class="announce-box" aria-live="polite" hidden></div>
@@ -608,6 +624,7 @@
 <script src="script.js"></script>
 <script src="tabs.js"></script>
 <script src="tools.js"></script>
+<script src="search.js"></script>
 <script type="module" src="cloud.js"></script>
 <script type="module" src="share.js"></script>
 <script type="module" src="avatars.js"></script>
@@ -671,12 +688,12 @@
     if (mq.matches) {
       if (filter && filter.parentNode !== pillRow) pillRow.appendChild(filter);
       if (composer && feed && composer.parentNode !== feed) feed.insertBefore(composer, feed.firstChild);
-      if (hello && composer && hello.parentNode !== composer) composer.insertBefore(hello, composer.firstChild);
     } else {
       if (filter && filterHome && filter.parentNode !== filterHome) filterHome.appendChild(filter);
       if (composer && feed && composer.parentNode === feed) feed.parentNode.insertBefore(composer, feed);
-      if (hello && helloHome && hello.parentNode !== helloHome) helloHome.insertBefore(hello, helloHome.firstChild);
     }
+    /* Greeting sits in the post card at every size, so the header only holds logo + search */
+    if (hello && composer && hello.parentNode !== composer) composer.insertBefore(hello, composer.firstChild);
   }
   place();
   if (mq.addEventListener) mq.addEventListener("change", function () { place(); if (!mq.matches) closeSheet(); });

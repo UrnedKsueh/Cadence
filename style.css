@@ -2107,3 +2107,90 @@ button:focus:not(:focus-visible), a:focus:not(:focus-visible), summary:focus:not
   .chat-me-bell-count[hidden] { display: none; }
 }
 .notif-panel.in-chat { position: fixed; top: auto; right: auto; left: 84px; bottom: 88px; z-index: 1100; width: min(380px, calc(100vw - 100px)); }
+
+/* ===== Header v2: logo + search left, Cadence centred, pill right. No tagline. ===== */
+header.top { position: relative; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; }
+.top-left { display: flex; align-items: center; gap: 6px; justify-self: start; min-width: 0; }
+.top-logo { width: 34px; height: 34px; color: var(--text); }
+header.top .brand { justify-self: center; min-width: 0; text-align: center; }
+header.top .brand h1 { display: block; margin: 0; white-space: nowrap; font-size: clamp(1.25rem, 5.4vw, 1.7rem); }
+.top-actions { justify-self: end; }
+.top-search-btn { width: 40px; height: 40px; border: 0; color: var(--text); }
+.top-search-btn svg { width: 22px; height: 22px; }
+.top-search { display: none; align-items: center; gap: 8px; height: 46px; padding: 0 6px 0 14px; background-color: var(--panel); border: 1px solid var(--line); border-radius: 999px; box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08); color: var(--muted); }
+.top-search > svg { width: 20px; height: 20px; flex: none; }
+.top-search input { flex: 1; min-width: 0; height: 100%; padding: 0; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 0.95rem; outline: none; box-shadow: none; -webkit-appearance: none; appearance: none; }
+.top-search input::-webkit-search-cancel-button { display: none; }
+.top-search-close { flex: none; width: 36px; height: 36px; min-height: 0; padding: 0; display: grid; place-items: center; border: 0; border-radius: 999px; background: transparent; color: var(--text); }
+.top-search-close svg { width: 18px; height: 18px; }
+header.top.searching .top-search { display: flex; position: absolute; inset: 0; z-index: 8; height: auto; }
+header.top.searching .top-search-btn { visibility: hidden; }
+
+.gs-panel { position: fixed; z-index: 40; left: 14px; right: 14px; top: calc(env(safe-area-inset-top, 0px) + 78px); max-width: 480px; margin: 0 auto; padding: 8px; background-color: var(--panel); border: 1px solid var(--line); border-radius: 22px; box-shadow: 0 16px 40px rgba(0, 0, 0, 0.18); }
+.gs-panel[hidden] { display: none; }
+.gs-head { margin: 6px 10px 6px; font-size: 0.85rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gs-head strong { color: var(--text); }
+.gs-row { display: flex; flex-direction: column; align-items: flex-start; gap: 1px; width: 100%; padding: 10px 12px; border: 0; border-radius: 14px; background: transparent; color: var(--text); text-align: left; }
+.gs-row span { font-weight: 650; font-size: 0.95rem; }
+.gs-row small { color: var(--muted); font-weight: 400; font-size: 0.8rem; }
+.gs-row:hover, .gs-row:focus-visible { background-color: color-mix(in srgb, var(--accent) 12%, transparent); filter: none; }
+.feed-hidden { display: none !important; }
+
+@media (min-width: 760px) {
+  /* Wide: logo lives in the rail, so show a full search field on the left; wordmark stays for screen readers */
+  header.top { display: flex; justify-content: space-between; }
+  .top-left { flex: 1; }
+  .top-logo, .top-search-btn, .top-search-close { display: none; }
+  .top-search { display: flex; width: 100%; max-width: 380px; }
+  header.top .brand { width: 0; }
+  header.top .brand h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .gs-panel { left: 122px; right: auto; width: 380px; margin: 0; top: 76px; }
+}
+
+
+/* ===== v19: no side rail. Portrait layout at every size =====
+   Header: logo > search bar (icon + "Cadence") > wrench/bell/profile pill.
+   Nav: floating dark bar at the bottom. ===== */
+header.top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; position: relative; }
+header.top .top-left { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 10px; justify-self: auto; }
+header.top .top-logo { display: block; flex: none; width: 36px; height: 36px; }
+header.top .top-search-btn { display: none; }
+header.top .top-search, header.top.searching .top-search { display: flex; position: static; inset: auto; z-index: auto; flex: 1 1 auto; width: auto; max-width: 420px; min-width: 0; height: 46px; }
+header.top .top-search-close { display: none; }
+header.top .top-search:has(input:not(:placeholder-shown)) .top-search-close { display: grid; }
+header.top .top-search input::placeholder { color: var(--text); opacity: 1; font-weight: 700; letter-spacing: 0.01em; }
+header.top .top-search input:focus::placeholder { color: var(--muted); font-weight: 500; }
+/* The wordmark now lives inside the search bar; keep the h1 for screen readers */
+header.top .brand { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; margin: 0; padding: 0; }
+header.top .brand h1 { position: static; width: auto; height: auto; clip: auto; margin: 0; }
+header.top .top-actions { flex: none; justify-self: auto; }
+main:has(#panel-home:not([hidden])) header.top { margin-bottom: 14px; position: relative; z-index: auto; pointer-events: auto; }
+
+/* Greeting now sits inside the post card, same as portrait */
+.composer .home-hello { display: block; margin: 0 0 2px; }
+.composer .home-hello h2 { font-size: 1.6rem; margin: 0 0 4px; letter-spacing: -0.02em; }
+.composer .home-hello .hint { margin-top: 0; }
+
+@media (max-width: 420px) {
+  header.top .top-actions .avatar-btn { width: 38px; height: 38px; }
+  header.top { gap: 8px; }
+  header.top .top-left { gap: 8px; }
+}
+
+@media (min-width: 760px) {
+  body { padding-left: 0; }
+  main { padding-top: 20px; padding-bottom: calc(112px + env(safe-area-inset-bottom, 0px)); }
+  .rail-logo, .rail-name { display: none; }
+  .tabbar { position: fixed; top: auto; bottom: calc(14px + env(safe-area-inset-bottom, 0px)); left: 0; right: 0; margin: 0 auto; width: min(520px, calc(100vw - 24px)); flex-direction: row; justify-content: center; align-items: stretch; gap: 4px; padding: 8px; border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 26px; box-shadow: 0 14px 34px rgba(0, 0, 0, 0.35); }
+  .tabbar .tab { position: relative; flex: 1 1 0; width: auto; max-width: none; height: auto; min-height: 54px; padding: 6px 4px; flex-direction: column; gap: 3px; border-radius: 18px; font-size: 0.72rem; }
+  .tabbar .tab span { position: static; width: auto; height: auto; overflow: visible; clip: auto; white-space: normal; }
+  .tabbar .tab[aria-selected="true"]::before { content: none; }
+  .tabbar .tab[aria-selected="true"] svg { transform: translateY(-1px); }
+}
+
+/* Workspace overlay no longer needs to clear a side rail; it stops above the bottom bar */
+@media (min-width: 900px) and (orientation: landscape) {
+  .chat-overlay:not(.chat-saved) { top: 14px; left: 14px; right: 14px; bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+  /* The side card no longer has to sit below a floating pill, so it lines up with the post card */
+  .home-side { margin-top: 0; top: 16px; max-height: calc(100vh - 32px); }
+}
