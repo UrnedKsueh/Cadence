@@ -2401,3 +2401,7 @@ body.pj-sheet #sharedForm .form-actions button[type="submit"], body.pj-sheet #jo
 /* Refreshing on #projects: show a short loading line instead of the empty Projects page while the team chat opens */
 body.pj-resuming #panel-projects > * { visibility: hidden; }
 body.pj-resuming #panel-projects::before { content: "Opening your projects\2026"; display: block; padding: 56px 16px; text-align: center; font-size: 15px; opacity: .7; }
+
+/* Log out lives in the profile menu now, so the Sign out button on Profile is hidden (the menu still triggers it) */
+#panel-profile #signOutBtn { display: none !important; }
+#panel-profile section:has(#signOutBtn:not([hidden])) #syncStatus { flex: 1 1 100%; }
