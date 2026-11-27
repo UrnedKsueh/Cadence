@@ -2397,3 +2397,7 @@ body.pj-sheet #sharedForm .form-actions button[type="submit"], body.pj-sheet #jo
 .chat-setup-go { color: var(--muted); font-size: 1.2rem; }
 .chat-setup-skip { display: block; margin: 10px auto 0; background: none; border: 0; color: var(--muted); padding: 10px; font: inherit; }
 .pj-name-clear { min-width: 28px; min-height: 28px; width: 28px; height: 28px; padding: 0; }
+
+/* Refreshing on #projects: show a short loading line instead of the empty Projects page while the team chat opens */
+body.pj-resuming #panel-projects > * { visibility: hidden; }
+body.pj-resuming #panel-projects::before { content: "Opening your projects\2026"; display: block; padding: 56px 16px; text-align: center; font-size: 15px; opacity: .7; }

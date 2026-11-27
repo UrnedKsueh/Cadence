@@ -127,11 +127,7 @@ async function load(force) {
   loaded = true;
   render();
   window.dispatchEvent(new CustomEvent("cadence:sharedprojects", { detail: projects }));
-  if (pendingEnter) {
-    pendingEnter = false;
-    const pnl = $("panel-projects");
-    if (pnl && !pnl.hidden && !document.body.classList.contains("chat-open")) enter();
-  }
+  if (pendingEnter) resumeTry();
 }
 
 async function patch(p, fields) {
@@ -1124,6 +1120,8 @@ onAuthStateChanged(getAuth(), async function (user) {
     say("");
     render();
     window.dispatchEvent(new CustomEvent("cadence:sharedprojects", { detail: [] }));
+    pendingEnter = false;
+    resumeDone();
   }
 });
 
@@ -1352,5 +1350,29 @@ window.CadenceSharedProjects = {
   newProject: newProject
 };
 
-// Refreshing the page on #projects: tabs.js ran before this file, so open the team chat once projects load
-if (location.hash === "#projects") pendingEnter = true;
+// Refreshing the page on #projects: tabs.js ran before this file, so open the team chat once sign-in and projects have loaded.
+// The empty Projects page stays hidden meanwhile (body.pj-resuming) and we keep retrying for a while, because cloud sync or a
+// late sign-in can close or delay the chat right after it opens.
+let resumeTimer = null;
+function resumeDone() {
+  document.body.classList.remove("pj-resuming");
+  if (resumeTimer) { clearInterval(resumeTimer); resumeTimer = null; }
+}
+function resumeTry() {
+  if (location.hash !== "#projects") { pendingEnter = false; resumeDone(); return; }
+  const body = document.body;
+  if (body.classList.contains("chat-open")) { pendingEnter = false; body.classList.remove("pj-resuming"); return; }
+  const pnl = $("panel-projects");
+  if (!me || !loaded || !pnl || pnl.hidden || document.querySelector(".pj-page") || body.classList.contains("pj-sheet")) return;
+  if (enter()) pendingEnter = false;
+  // Nothing to open (no projects yet): show the normal Projects page
+  body.classList.remove("pj-resuming");
+}
+if (location.hash === "#projects") {
+  pendingEnter = true;
+  let ticks = 0;
+  resumeTimer = setInterval(function () {
+    resumeTry();
+    if (++ticks >= 40) { clearInterval(resumeTimer); resumeTimer = null; document.body.classList.remove("pj-resuming"); }
+  }, 350);
+}

@@ -8,7 +8,14 @@
   const avatarBtn = document.getElementById("avatarBtn");
   const KEY = "cadence:lastTab";
 
+  // Refreshing on #projects: hide the empty Projects page while the team chat is being opened (sharedprojects.js clears this)
+  if (location.hash === "#projects") {
+    document.body.classList.add("pj-resuming");
+    setTimeout(function () { document.body.classList.remove("pj-resuming"); }, 20000);
+  }
+
   function show(name, focusTab, force) {
+    if (name !== "projects") document.body.classList.remove("pj-resuming");
     // Showcase now lives inside Profile; old links and saved tabs land there
     if (name === "community") name = "resources";
     let jumpTo = "";
