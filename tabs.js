@@ -121,6 +121,9 @@
       dst.innerHTML = src.innerHTML; dst.style.cssText = src.style.cssText; dst.className = "avatar lg " + src.className.replace(/\bavatar\b|\blg\b/g, "");
       dst2.innerHTML = src.innerHTML; dst2.style.cssText = src.style.cssText; dst2.className = "avatar " + src.className.replace(/\bavatar\b|\blg\b/g, "");
       nameDst.textContent = nameSrc.textContent; nameDst2.textContent = nameSrc.textContent;
+      const dst3 = document.getElementById("showPostAvatar"), nameDst3 = document.getElementById("showPostName");
+      if (dst3) { dst3.innerHTML = src.innerHTML; dst3.style.cssText = src.style.cssText; dst3.className = "avatar post-ava " + src.className.replace(/\bavatar\b|\blg\b/g, ""); }
+      if (nameDst3) nameDst3.textContent = nameSrc.textContent;
     }
     const opts = { childList: true, characterData: true, subtree: true, attributes: true };
     new MutationObserver(sync).observe(src, opts);

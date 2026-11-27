@@ -477,13 +477,19 @@
       <p class="hint" id="syncStatus" aria-live="polite">Saved on this device only.</p>
       <div class="row">
         <button type="button" id="signInBtn" hidden>Sign in with Google</button>
-        <button type="button" class="secondary" id="signOutBtn" hidden>Sign out</button>
+        <button type="button" class="secondary" id="signOutBtn" hidden style="display:none" tabindex="-1" aria-hidden="true">Sign out</button>
       </div>
     </section>
   <div id="showcaseWrap">
-  <section id="showcaseSection" aria-labelledby="showcaseTitle">
-    <h2 id="showcaseTitle">Showcase</h2>
-    <p class="hint">Your finished work. Videos stay on YouTube, Vimeo or Drive; this saves the link and a small thumbnail.</p>
+  <section id="showcaseSection" class="post showcase-post" aria-labelledby="showcaseTitle">
+    <div class="post-head has-ava">
+      <span class="avatar post-ava" id="showPostAvatar" aria-hidden="true"></span>
+      <div class="post-who">
+        <strong id="showPostName">You</strong>
+        <small class="hint" id="showcaseTitle">Showcase · your finished work</small>
+      </div>
+    </div>
+    <p class="hint show-intro">Videos stay on YouTube, Vimeo or Drive. Adding a piece saves the link and a small thumbnail.</p>
     <details class="shots add-piece" id="showAdd">
       <summary>Add a piece</summary>
       <form id="showForm" autocomplete="off">
@@ -549,19 +555,19 @@
       <p id="showEmptyText">Nothing here yet.</p>
       <button type="button" class="secondary" id="showClear" hidden>Clear filters</button>
     </div>
-  </section>
-  <section id="shareSection" aria-labelledby="shareTitle" hidden>
-    <h2 id="shareTitle">Share your showcase</h2>
-    <p class="hint">Make a link anyone can open without signing in. It shows your pieces only (title, course, year, role, tools, note and video link). Thumbnails and your email are never included. You can stop sharing any time.</p>
-    <label for="shareName">Name on your posts and share page (optional)</label>
-    <input id="shareName" class="field" maxlength="40" placeholder="e.g. Alex">
-    <div class="row">
-      <button type="button" id="sharePublish">Create share link</button>
-      <button type="button" class="secondary" id="shareCopy" hidden>Copy link</button>
-      <button type="button" class="secondary" id="shareStop" hidden>Stop sharing</button>
-    </div>
-    <input id="shareLink" class="field" readonly hidden aria-label="Your share link">
-    <p class="hint" id="shareMsg" aria-live="polite"></p>
+    <details id="shareSection" class="post-share" hidden>
+      <summary>Share your showcase</summary>
+      <p class="hint">Make a link anyone can open without signing in. It shows your pieces only (title, course, year, role, tools, note and video link). Thumbnails and your email are never included. You can stop sharing any time.</p>
+      <label for="shareName">Name on your posts and share page (optional)</label>
+      <input id="shareName" class="field" maxlength="40" placeholder="e.g. Alex">
+      <div class="row">
+        <button type="button" id="sharePublish">Create share link</button>
+        <button type="button" class="secondary" id="shareCopy" hidden>Copy link</button>
+        <button type="button" class="secondary" id="shareStop" hidden>Stop sharing</button>
+      </div>
+      <input id="shareLink" class="field" readonly hidden aria-label="Your share link">
+      <p class="hint" id="shareMsg" aria-live="polite"></p>
+    </details>
   </section>
   </div>
   <div class="admin-zone">
