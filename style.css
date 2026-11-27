@@ -666,11 +666,17 @@ section { border-radius: var(--r-lg); border-color: var(--line); box-shadow: 0 1
 .profile-card strong { font-size: 1.3rem; line-height: 1.25; letter-spacing: -0.02em; }
 .profile-card small { color: var(--muted); font-size: 0.92rem; }
 #panel-profile #syncStatus { margin: 0 0 14px; padding: 10px 14px; border-radius: var(--r-md); background-color: var(--bg); border: 1px solid var(--line); color: var(--text); font-size: 0.92rem; }
+#panel-settings #syncStatus { margin: 0 0 14px; padding: 10px 14px; border-radius: var(--r-md); background-color: var(--bg); border: 1px solid var(--line); color: var(--text); font-size: 0.92rem; }
 #panel-profile .row { flex-wrap: wrap; }
+#panel-settings .row { flex-wrap: wrap; }
 #panel-profile .row > button { flex: 1 1 0; min-width: 140px; border-radius: 999px; min-height: 46px; }
+#panel-settings .row > button { flex: 1 1 0; min-width: 140px; border-radius: 999px; min-height: 46px; }
 #panel-profile .row[hidden] { display: none; }
+#panel-settings .row[hidden] { display: none; }
 #panel-profile #backupTitle + .hint { margin-top: 0; }
+#panel-settings #backupTitle + .hint { margin-top: 0; }
 #panel-profile .hint:last-child:empty { display: none; }
+#panel-settings .hint:last-child:empty { display: none; }
 .show-card .row { flex-wrap: wrap; gap: 8px; }
 .show-card .row > button:not(.remove), .show-card .row > .btn { padding: 8px 14px; white-space: nowrap; flex: none; }
 .show-card .row .remove { flex: none; }
@@ -867,13 +873,15 @@ html.share-view #shareView { display: block; max-width: 720px; margin: 0 auto; p
 .add-piece .field { background-color: var(--panel); }
 .add-piece textarea.field { resize: vertical; min-height: 84px; font-family: inherit; line-height: 1.45; }
 .add-piece .course-bar { margin-top: 0; }
-.add-piece .tool-bar { margin-top: -2px; }
+.add-piece .tool-bar { margin: 2px 0 10px; }
 .add-piece .level-chip { min-height: 38px; padding: 4px 12px; font-size: 0.85rem; }
 .add-piece .subdet { margin: 4px 0 16px; }
 .add-piece .subdet > summary { min-height: 44px; color: var(--muted); font-weight: 600; font-size: 0.92rem; }
 .add-piece .subdet > summary::before { content: none; }
 .add-piece .subdet[open] > summary { color: var(--text); }
 .add-piece .field-grid { margin-top: 4px; }
+.add-piece .opt { color: var(--muted); font-weight: 400; }
+.add-piece .form-actions { position: sticky; bottom: 0; z-index: 2; padding: 12px 0 calc(4px + env(safe-area-inset-bottom, 0px)); background-color: var(--bg); }
 
 /* File picker looks like a button, with a small preview */
 .thumb-input { padding: 8px; color: var(--muted); font-size: 0.9rem; cursor: pointer; }
@@ -1278,10 +1286,15 @@ strong.tap:hover { text-decoration: underline; }
 
 /* Account and sync: slim row once signed in */
 #panel-profile section:has(#signOutBtn:not([hidden])) { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px; }
+#panel-settings section:has(#signOutBtn:not([hidden])) { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 12px 16px; }
 #panel-profile section:has(#signOutBtn:not([hidden])) #syncTitle { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); margin: 0; }
+#panel-settings section:has(#signOutBtn:not([hidden])) #syncTitle { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); margin: 0; }
 #panel-profile section:has(#signOutBtn:not([hidden])) #syncStatus { flex: 1 1 200px; margin: 0; }
+#panel-settings section:has(#signOutBtn:not([hidden])) #syncStatus { flex: 1 1 200px; margin: 0; }
 #panel-profile section:has(#signOutBtn:not([hidden])) .row { flex: 0 0 auto; }
+#panel-settings section:has(#signOutBtn:not([hidden])) .row { flex: 0 0 auto; }
 #panel-profile section:has(#signOutBtn:not([hidden])) .row > button { flex: none; min-width: 0; min-height: 40px; padding: 0 18px; }
+#panel-settings section:has(#signOutBtn:not([hidden])) .row > button { flex: none; min-width: 0; min-height: 40px; padding: 0 18px; }
 
 /* Admin tools: one tidy group, each tool collapsed by default */
 .admin-zone { margin-bottom: 16px; }
@@ -2403,7 +2416,9 @@ body.pj-resuming #panel-projects::before { content: "Opening your projects\2026"
 
 /* Log out lives in the profile menu now, so the Sign out button on Profile is hidden (the menu still triggers it) */
 #panel-profile #signOutBtn { display: none !important; }
+#panel-settings #signOutBtn { display: none !important; }
 #panel-profile section:has(#signOutBtn:not([hidden])) #syncStatus { flex: 1 1 100%; }
+#panel-settings section:has(#signOutBtn:not([hidden])) #syncStatus { flex: 1 1 100%; }
 
 /* Showcase + Share are one post-style card, like a post on Home */
 #showcaseSection.post { margin: 0 0 16px; padding: 14px; background-color: var(--panel); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.08); }

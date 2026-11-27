@@ -1804,6 +1804,9 @@ $("showCancel").onclick = function () {
   $("showAdd").open = false;
 };
 $("showUrl").addEventListener("input", function () { $("showUrl").setCustomValidity(""); });
+$("showTitle").addEventListener("keydown", function (event) {
+  if (event.key === "Enter") { event.preventDefault(); $("showUrl").focus(); }
+});
 $("showClear").onclick = function () {
   showTool = "";
   showLevel = 0;
