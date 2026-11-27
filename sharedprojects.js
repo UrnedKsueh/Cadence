@@ -1351,3 +1351,6 @@ window.CadenceSharedProjects = {
   enter: enter,
   newProject: newProject
 };
+
+// Refreshing the page on #projects: tabs.js ran before this file, so open the team chat once projects load
+if (location.hash === "#projects") pendingEnter = true;

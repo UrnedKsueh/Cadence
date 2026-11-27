@@ -2396,3 +2396,4 @@ body.pj-sheet #sharedForm .form-actions button[type="submit"], body.pj-sheet #jo
 .chat-setup-lbl { flex: 1; font-weight: 600; }
 .chat-setup-go { color: var(--muted); font-size: 1.2rem; }
 .chat-setup-skip { display: block; margin: 10px auto 0; background: none; border: 0; color: var(--muted); padding: 10px; font: inherit; }
+.pj-name-clear { min-width: 28px; min-height: 28px; width: 28px; height: 28px; padding: 0; }
