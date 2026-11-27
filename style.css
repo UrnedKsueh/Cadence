@@ -2241,3 +2241,54 @@ main { padding-bottom: calc(32px + env(safe-area-inset-bottom, 0px)) !important;
 .acct-ico svg { width: 20px; height: 20px; }
 .acct-label { flex: 1; min-width: 0; font-size: 0.95rem; font-weight: 600; }
 .acct-row .tool-chevron { flex: none; color: var(--muted); }
+
+/* ===== v20: Projects opens the team chat directly; progress above channels; portrait home screen ===== */
+#sharedSearch, #sharedList, #pjDue, #chatInbox { display: none !important; }
+
+.chat-prog { display: flex; flex-direction: column; gap: 6px; margin: 6px 8px 10px; padding: 10px 12px; border-radius: 14px; background-color: var(--tint-a, var(--bg)); border: 1px solid var(--line); }
+.chat-prog-text { font-size: 0.85rem; font-weight: 600; }
+.chat-prog-bar { display: block; height: 8px; border-radius: 8px; overflow: hidden; background-color: var(--line); }
+.chat-prog-bar > span { display: block; height: 100%; border-radius: 8px; background-color: var(--accent); transition: width .3s ease; }
+.chat-home-acts { display: none; }
+
+@media not all and (min-width: 900px) and (orientation: landscape) {
+  .chat-overlay.chat-home:not(.chat-saved):not([hidden]) { display: grid; grid-template-columns: 72px minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+  .chat-overlay.chat-home:not(.chat-saved) > .chat-head,
+  .chat-overlay.chat-home:not(.chat-saved) > .chat-list,
+  .chat-overlay.chat-home:not(.chat-saved) > .chat-note,
+  .chat-overlay.chat-home:not(.chat-saved) > .chat-form,
+  .chat-overlay.chat-home:not(.chat-saved) > .chat-people,
+  .chat-overlay.chat-home:not(.chat-saved) > .chat-jump { display: none !important; }
+
+  /* project rail, like servers in Discord */
+  .chat-overlay.chat-home:not(.chat-saved) > .chat-prail { display: flex; flex-direction: column; align-items: center; gap: 10px; grid-column: 1; grid-row: 1; min-height: 0; overflow-y: auto; padding: calc(14px + env(safe-area-inset-top, 0px)) 0 calc(14px + env(safe-area-inset-bottom, 0px)); background-color: var(--rail, #11141c); scrollbar-width: none; }
+  .chat-overlay.chat-home .chat-prail::-webkit-scrollbar { display: none; }
+  .chat-overlay.chat-home .chat-ptile { position: relative; flex: none; width: 48px; height: 48px; padding: 0; border: 0; border-radius: 24px; display: grid; place-items: center; font-size: 1.1rem; font-weight: 700; transition: border-radius .15s ease; }
+  .chat-overlay.chat-home .chat-ptile.on { border-radius: 16px; }
+  .chat-overlay.chat-home .chat-ptile.on::before { content: ""; position: absolute; left: -12px; top: 12px; width: 4px; height: 24px; border-radius: 0 4px 4px 0; background-color: #ffffff; }
+  .chat-overlay.chat-home .chat-ptile-badge { position: absolute; right: -4px; bottom: -4px; min-width: 20px; height: 20px; padding: 0 5px; box-sizing: border-box; border-radius: 10px; display: grid; place-items: center; background-color: #e5484d; color: #ffffff; font-size: 0.7rem; font-weight: 700; box-shadow: 0 0 0 3px var(--rail, #11141c); }
+  .chat-overlay.chat-home .chat-rail-btn { display: grid; place-items: center; flex: none; width: 48px; height: 48px; padding: 0; border: 0; border-radius: 24px; color: #cfd6e6; background-color: rgba(255, 255, 255, 0.08); }
+  .chat-overlay.chat-home .chat-rail-home { margin-top: auto; }
+
+  /* channels + stages fill the rest of the screen */
+  .chat-overlay.chat-home:not(.chat-saved) > .chat-channels, .chat-overlay.chat-home:not(.chat-saved) > .chat-channels[hidden] { display: flex !important; position: static; grid-column: 2; grid-row: 1; justify-content: flex-start; min-height: 0; }
+  .chat-overlay.chat-home .chat-channels > .chat-scrim, .chat-overlay.chat-home .chat-channels .chat-drawer-grip { display: none; }
+  .chat-overlay.chat-home .chat-channels > .chat-drawer-panel { flex: 1; max-height: none; height: 100%; border-radius: 0; border: 0; box-shadow: none; padding: calc(18px + env(safe-area-inset-top, 0px)) 8px calc(12px + env(safe-area-inset-bottom, 0px)); background-color: var(--panel); }
+  .chat-overlay.chat-home .chat-channels .chat-drawer-title { margin: 0 8px 8px; font-size: 1.35rem; }
+  .chat-overlay.chat-home .chat-drawer-row { min-height: 48px; border-radius: 10px; }
+  .chat-overlay.chat-home .chat-home-acts { display: flex; gap: 8px; margin: 0 8px 10px; }
+  .chat-overlay.chat-home .chat-home-acts button { flex: 1; min-height: 40px; padding: 0 8px; border-radius: 12px; font-size: 0.85rem; }
+
+  /* docked profile card with notifications */
+  .chat-overlay.chat-home .chat-channels .chat-me { display: flex; align-items: center; gap: 10px; position: sticky; bottom: -4px; margin: 12px -4px -4px; padding: 10px; border-radius: 16px; background-color: var(--tint-a, var(--panel)); border: 1px solid var(--line); box-shadow: 0 -10px 16px -8px var(--panel); }
+  .chat-overlay.chat-home .chat-me-ava { flex: none; width: 38px; height: 38px; }
+  .chat-overlay.chat-home .chat-me-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .chat-overlay.chat-home .chat-me-txt strong, .chat-overlay.chat-home .chat-me-txt small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chat-overlay.chat-home .chat-me-txt small { color: var(--muted); }
+  .chat-overlay.chat-home .chat-me-bell { position: relative; display: grid; place-items: center; flex: none; width: 40px; height: 40px; min-height: 0; padding: 0; border-radius: 12px; }
+  .chat-overlay.chat-home .chat-me-bell-count { position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 9px; background-color: #e5484d; color: #ffffff; font-size: 0.7rem; font-weight: 700; line-height: 18px; text-align: center; }
+  .chat-overlay.chat-home .chat-me-bell-count[hidden] { display: none; }
+
+  /* sheets opened from the home screen stay bottom sheets above everything */
+  .chat-overlay.chat-home > .chat-drawer:not(.chat-channels) { grid-column: 1 / -1; grid-row: 1; }
+}

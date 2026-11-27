@@ -92,6 +92,25 @@ const MAX_CHANNELS = 8;
 const FINE = window.matchMedia("(hover: hover) and (pointer: fine)");
 const TOUCH = window.matchMedia("(hover: none)");
 const WIDE = window.matchMedia("(min-width: 900px) and (orientation: landscape)");
+// Portrait: the workspace opens on a Discord-style home screen (project rail + channels + stages)
+let homeMode = false;
+function setHome(on) {
+  if (!ui || !cur) return;
+  on = !!on && !WIDE.matches;
+  if (on === homeMode) return;
+  homeMode = on;
+  ui.root.classList.toggle("chat-home", on);
+  if (on) {
+    toggleDrawer(false); toggleSheet(false); closeFind(); closeSwitch();
+    ui.proj.hidden = true;
+    hideSuggest();
+    fillPicker();
+  } else {
+    markSeen(cur.p.id, cur.tid);
+    fillPicker(); render(true);
+  }
+}
+if (WIDE.addEventListener) WIDE.addEventListener("change", function () { if (WIDE.matches && homeMode) setHome(false); });
 let fq = ""; // Current find-in-chat query
 function chansOf(p) {
   return (Array.isArray(p.channels) ? p.channels : [])
@@ -133,7 +152,7 @@ function build() {
   const head = mk("div", "chat-head");
   const back = mk("button", "secondary chat-back", "\u2190");
   back.type = "button";
-  back.setAttribute("aria-label", "Close chat");
+  back.setAttribute("aria-label", "Back to channels");
   const titles = mk("div", "chat-titles");
   const title = mk("button", "chat-title chat-title-btn");
   title.type = "button";
@@ -172,7 +191,7 @@ function build() {
     const dx = e.clientX - hx, dy = Math.abs(e.clientY - hy);
     if (!cur || WIDE.matches || dy > 40 || Math.abs(dx) < 70) return;
     swipedAt = Date.now();
-    toggleDrawer(dx > 0);
+    if (dx > 0) setHome(true);
   });
   head.addEventListener("click", function (e) { if (Date.now() - swipedAt < 400) { e.stopPropagation(); e.preventDefault(); } }, true);
 
@@ -259,8 +278,8 @@ function build() {
   root.appendChild(prail);
   document.body.appendChild(root);
 
-  back.onclick = close;
-  pick.onclick = function () { if (cur) toggleDrawer(); };
+  back.onclick = function () { if (cur && !WIDE.matches && !homeMode) setHome(true); else close(); };
+  pick.onclick = function () { if (!cur) return; if (!WIDE.matches) setHome(true); else toggleDrawer(); };
   scrim.onclick = function () { toggleDrawer(false); };
   plus.onclick = function () { toggleSheet(); };
   form.onsubmit = function (e) { e.preventDefault(); submit(); };
@@ -410,7 +429,13 @@ function drawerRow(t, u, kind) {
     b.appendChild(mk("span", "chat-drawer-name", t.label.replace(/^# /, "")));
   }
   if (u.threads.has(t.id) && !on) b.appendChild(mk("span", "chat-badge", "\u25cf"));
-  b.onclick = function () { toggleDrawer(false); if (!on) switchTo(t.id); };
+  b.onclick = function () {
+    toggleDrawer(false);
+    const wasHome = homeMode;
+    if (wasHome) { homeMode = false; ui.root.classList.remove("chat-home"); }
+    if (!on) switchTo(t.id);
+    else if (wasHome) { markSeen(cur.p.id, cur.tid); fillPicker(); render(true); }
+  };
   return b;
 }
 
@@ -427,6 +452,34 @@ function fillPicker() {
   panel.textContent = "";
   panel.appendChild(mk("div", "chat-drawer-grip"));
   panel.appendChild(mk("h3", "chat-drawer-title", cur.p.name));
+  // Progress sits above the channels
+  const nStages = cur.p.stages.length;
+  const nDone = cur.p.stages.filter(function (s) { return s.status === "Done"; }).length;
+  const pct = nStages ? Math.round(nDone / nStages * 100) : 0;
+  const prog = mk("div", "chat-prog");
+  prog.appendChild(mk("span", "chat-prog-text", nStages ? nDone + " of " + nStages + " stages done" : "No stages yet"));
+  const pbar = mk("span", "chat-prog-bar");
+  pbar.setAttribute("role", "progressbar");
+  pbar.setAttribute("aria-valuemin", "0"); pbar.setAttribute("aria-valuemax", "100"); pbar.setAttribute("aria-valuenow", String(pct));
+  pbar.setAttribute("aria-label", cur.p.name + " progress");
+  const pfill = mk("span"); pfill.style.width = pct + "%";
+  pbar.appendChild(pfill);
+  prog.appendChild(pbar);
+  panel.appendChild(prog);
+  // Portrait home screen only (hidden by CSS elsewhere)
+  const hacts = mk("div", "chat-home-acts");
+  const hSt = mk("button", "secondary", "Stages (" + nStages + ")");
+  hSt.type = "button";
+  hSt.onclick = function () { showProjectSheet(""); };
+  const nPeople = cur.p.members.length;
+  const hPe = mk("button", "secondary", nPeople + (nPeople === 1 ? " person" : " people"));
+  hPe.type = "button";
+  hPe.onclick = function () { showProjectSheet(""); const m = ui.jpanel && ui.jpanel.querySelector(".sp-members"); if (m) m.scrollIntoView({ block: "start" }); };
+  const hFi = mk("button", "secondary", "Search");
+  hFi.type = "button";
+  hFi.onclick = function () { openFind("search"); };
+  hacts.appendChild(hFi); hacts.appendChild(hSt); hacts.appendChild(hPe);
+  panel.appendChild(hacts);
   const jt = mk("button", "chat-jumpto");
   jt.type = "button";
   jt.appendChild(mk("span", "", "Jump to\u2026"));
@@ -1348,7 +1401,8 @@ async function switchTo(tid) {
       if (snap.docs.length) cur.oldest = snap.docs[snap.docs.length - 1];
       cur.hasMore = snap.docs.length === PAGE;
       cur.loadedAt = snap.docs.reduce(function (a, d) { return Math.max(a, tOf(d)); }, 0);
-      markSeen(p.id, tid); fillPicker();
+      if (!homeMode) markSeen(p.id, tid);
+      fillPicker();
       render(true);
       focusNew(); updateJump();
       // Pinned messages older than the live window
@@ -1529,7 +1583,7 @@ function drawRail() {
   add.innerHTML = ICO('<path d="M12 5v14M5 12h14"/>');
   add.onclick = function () {
     close();
-    if (window.showTab) window.showTab("projects");
+    if (window.showTab) window.showTab("projects", true);
     setTimeout(function () { const n = document.getElementById("sharedNewBtn"); if (n) n.click(); }, 60);
   };
   rail.appendChild(add);
@@ -1549,8 +1603,11 @@ function openChat(p, tid) {
   setTitle();
   ui.root.querySelector(".chat-stages").textContent = "Stages (" + p.stages.length + ")";
   ui.proj.hidden = true;
+  homeMode = !tid && !WIDE.matches;
+  ui.root.classList.toggle("chat-home", homeMode);
   ui.root.hidden = false;
   document.body.classList.add("chat-open");
+  try { localStorage.setItem("cadence:lastProject", p.id); } catch (e) {}
   const start = tid && threadsOf(p).some(function (t) { return t.id === tid; }) ? tid : "general";
   switchTo(start);
   drawRail();
@@ -1564,7 +1621,11 @@ function close() {
   cur = null;
   if (ui) { ui.find.hidden = true; ui.sw.hidden = true; ui.jump.hidden = true; ui.root.hidden = true; ui.drawer.hidden = true; ui.proj.hidden = true; ui.sheet.hidden = true; }
   document.body.classList.remove("chat-open");
+  homeMode = false;
+  if (ui) ui.root.classList.remove("chat-home");
   if (sp() && sp().rerender) sp().rerender();
+  // The Projects page is only for New / Join now, so closing the chat goes Home
+  if (location.hash === "#projects" && window.showTab) window.showTab("home");
 }
 
 // System line in a stage thread, e.g. "Mika set Animation to Review". Best effort.

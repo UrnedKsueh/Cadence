@@ -26,6 +26,7 @@ let admin = false;
 let projects = [];
 let loading = false;
 let lastFetch = 0;
+let loaded = false, pendingEnter = false;
 const open = new Set();
 
 function mk(tag, cls, text) {
@@ -113,8 +114,14 @@ async function load(force) {
   }
   loading = false;
   lastFetch = Date.now();
+  loaded = true;
   render();
   window.dispatchEvent(new CustomEvent("cadence:sharedprojects", { detail: projects }));
+  if (pendingEnter) {
+    pendingEnter = false;
+    const pnl = $("panel-projects");
+    if (pnl && !pnl.hidden && !document.body.classList.contains("chat-open")) enter();
+  }
 }
 
 async function patch(p, fields) {
@@ -777,6 +784,17 @@ function renderDue() {
     box.appendChild(b);
   });
 }
+// Projects button: open the team chat of the last project used (or the newest one)
+function enter() {
+  if (!me) return false;
+  if (!loaded) { pendingEnter = true; return false; }
+  if (!projects.length) return false;
+  let id = "";
+  try { id = localStorage.getItem("cadence:lastProject") || ""; } catch (e) {}
+  const p = projects.filter(function (x) { return x.id === id; })[0] || projects[0];
+  openProjectChat(p);
+  return true;
+}
 function openForm(id) {
   const d = $(id);
   if (!d) return;
@@ -796,9 +814,6 @@ function render() {
   $("sharedJoinBtn").hidden = !me || admin;
   const list = $("sharedList");
   list.textContent = "";
-  renderDue();
-  const shown = projects.filter(function (p) { return !pjFilter || (p.name + " " + (p.course || "")).toLowerCase().indexOf(pjFilter) >= 0; });
-  shown.forEach(function (p) { list.appendChild(row(p)); });
   if (window.CadenceChat && window.CadenceChat.inbox) window.CadenceChat.inbox($("chatInbox"), projects);
   updateEmpty();
 }
@@ -847,6 +862,8 @@ $("sharedForm").onsubmit = async function (e) {
     $("sharedAdd").open = false;
     open.add(ref.id);
     await load(true);
+    const made = projects.filter(function (x) { return x.id === ref.id; })[0];
+    if (made) openProjectChat(made);
   } catch (err) {
     say("Couldn't create the project. Make sure the latest rules are published in Firebase.");
   }
@@ -879,6 +896,8 @@ $("joinForm").onsubmit = async function (e) {
         open.add(pid);
         await load(true);
         say("You joined " + String(inv.data().name || "the project") + ".");
+        const joined = projects.filter(function (x) { return x.id === pid; })[0];
+        if (joined) openProjectChat(joined);
       }
     }
   } catch (err) {
@@ -893,7 +912,7 @@ document.addEventListener("visibilitychange", function () { if (!document.hidden
 onAuthStateChanged(getAuth(), async function (user) {
   me = user || null;
   admin = false;
-  projects = []; lastFetch = 0;
+  projects = []; lastFetch = 0; loaded = false;
   if (me) {
     try { admin = (await getDoc(doc(db, "admins", me.uid))).exists(); } catch (e) {}
     await load(true);
@@ -913,5 +932,6 @@ window.CadenceSharedProjects = {
   patch: patch,
   panel: projectPanel,
   addPeople: addPeople,
-  show: showProject
+  show: showProject,
+  enter: enter
 };
