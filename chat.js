@@ -1855,7 +1855,8 @@ function openProject(p, stageId) {
 
 document.addEventListener("click", function (e) {
   if (!cur || !e.target.closest) return;
-  if (e.target.closest(".tabbar .tab")) close();
+  const tb = e.target.closest(".tabbar .tab");
+  if (tb && tb.dataset.tab !== "projects") close();
 });
 
 window.CadenceChat = { openProject: openProject, notice: notice, close: close, button: button, stageButton: stageButton, open: openChat, log: log, unreadFor: unreadFor, inbox: renderInbox, tiles: tiles };

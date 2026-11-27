@@ -32,7 +32,7 @@
     const target = jumpTo && document.getElementById(jumpTo);
     if (target) target.scrollIntoView({ block: "start" }); else window.scrollTo(0, 0);
     // Projects goes straight into the team chat. The list page only shows for New / Join or when there is no project yet.
-    if (name === "projects" && !force && window.CadenceSharedProjects && window.CadenceSharedProjects.enter) window.CadenceSharedProjects.enter();
+    if (name === "projects" && !force && window.CadenceSharedProjects && window.CadenceSharedProjects.enter) setTimeout(function () { window.CadenceSharedProjects.enter(); }, 0);
   }
 
   window.showTab = function (name, force) { show(name, false, force === true); };
