@@ -37,7 +37,16 @@ function mk(tag, cls, text) {
 }
 function ms(t) { return t && typeof t.toMillis === "function" ? t.toMillis() : Number(t) || 0; }
 function newId() { return Math.random().toString(36).slice(2, 8); }
+let toastTimer = null;
 function say(text) {
+  if (text && document.querySelector(".pj-page")) {
+    let t = document.querySelector(".pj-toast");
+    if (!t) { t = document.createElement("div"); t.className = "pj-toast"; t.setAttribute("role", "status"); document.body.appendChild(t); }
+    t.textContent = text;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.remove(); }, 4500);
+    return;
+  }
   if (text && window.CadenceChat && window.CadenceChat.notice && window.CadenceChat.notice(text)) return;
   const m = $("sharedMsg");
   m.textContent = text || "";
@@ -80,6 +89,7 @@ function cleanLinks(s) {
 }
 
 function clean(p) {
+  p.icon = typeof p.icon === "string" && p.icon.indexOf("data:image/") === 0 && p.icon.length < 60000 ? p.icon : "";
   p.members = Array.isArray(p.members) ? p.members : [];
   p.names = p.names && typeof p.names === "object" ? p.names : {};
   p.stages = (Array.isArray(p.stages) ? p.stages : []).map(function (s) {
@@ -813,14 +823,13 @@ function buildSheet() {
   const sec = $("sharedSection");
   const head = document.createElement("div");
   head.className = "pj-sheet-head";
-  const t = document.createElement("strong");
-  t.textContent = "New project";
   const x = document.createElement("button");
-  x.type = "button"; x.className = "secondary pj-sheet-x"; x.textContent = "Close";
-  x.setAttribute("aria-label", "Close");
+  x.type = "button"; x.className = "secondary pj-sheet-x"; x.textContent = "\u2190";
+  x.setAttribute("aria-label", "Back");
   x.onclick = closeSheet;
-  head.appendChild(t); head.appendChild(x);
+  head.appendChild(x);
   sec.insertBefore(head, sec.firstChild);
+  buildCreatePage();
   const bd = document.createElement("div");
   bd.id = "pjSheetBackdrop";
   bd.onclick = closeSheet;
@@ -835,6 +844,117 @@ function buildSheet() {
     });
   });
 }
+// ---- Create your project page (modeled on a chat app's create-server screen) ----
+let newIcon = "";
+function squareIcon(file, size) {
+  return new Promise(function (res, rej) {
+    const url = URL.createObjectURL(file);
+    const im = new Image();
+    im.onload = function () {
+      const side = Math.min(im.naturalWidth, im.naturalHeight);
+      if (!side) { URL.revokeObjectURL(url); rej(new Error("img")); return; }
+      const c = document.createElement("canvas");
+      c.width = c.height = size;
+      c.getContext("2d").drawImage(im, (im.naturalWidth - side) / 2, (im.naturalHeight - side) / 2, side, side, 0, 0, size, size);
+      URL.revokeObjectURL(url);
+      res(c.toDataURL("image/jpeg", 0.82));
+    };
+    im.onerror = function () { URL.revokeObjectURL(url); rej(new Error("img")); };
+    im.src = url;
+  });
+}
+window.CadenceIconPick = squareIcon;
+function paintIconPick() {
+  const b = $("pjIconPick");
+  if (!b) return;
+  b.classList.toggle("has-icon", !!newIcon);
+  b.style.backgroundImage = newIcon ? "url(" + newIcon + ")" : "";
+}
+function resetCreate() {
+  newIcon = "";
+  paintIconPick();
+  const p = $("pjPrivate"); if (p) { p.checked = false; p.dispatchEvent(new Event("change")); }
+  const m = $("sharedMore"); if (m) m.open = false;
+}
+function buildCreatePage() {
+  const form = $("sharedForm");
+  if (!form || $("pjIconPick")) return;
+  const el = function (tag, cls, text) { const n = document.createElement(tag); if (cls) n.className = cls; if (text !== undefined) n.textContent = text; return n; };
+  const top = el("div", "pj-create-top");
+  top.appendChild(el("h2", "", "Create your project"));
+  top.appendChild(el("p", "hint", "Your project is where your team plans, chats and finishes work. Make yours and start talking."));
+  const pick = el("button", "pj-icon-pick"); pick.type = "button"; pick.id = "pjIconPick";
+  pick.setAttribute("aria-label", "Upload a project icon");
+  const ph = el("span", "pj-icon-ph");
+  ph.innerHTML = '<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true" fill="currentColor"><path d="M9 4l-1.4 2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-2.6L15 4zm3 4.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9zm0 2a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"/></svg>';
+  ph.appendChild(el("span", "", "UPLOAD"));
+  pick.appendChild(ph);
+  pick.appendChild(el("span", "pj-icon-plus", "+"));
+  const file = el("input"); file.type = "file"; file.accept = "image/*"; file.id = "pjIconFile"; file.hidden = true;
+  pick.onclick = function () { file.click(); };
+  file.onchange = function () {
+    const f = file.files && file.files[0];
+    file.value = "";
+    if (!f) return;
+    squareIcon(f, 128).then(function (d) { newIcon = d; paintIconPick(); say(""); })
+      .catch(function () { say("That picture couldn't be read. Try a JPG or PNG."); });
+  };
+  top.appendChild(pick); top.appendChild(file);
+  form.insertBefore(top, form.firstChild);
+
+  // Name field with a clear button
+  const nm = $("sharedName");
+  const wrap = el("div", "pj-name-wrap");
+  nm.parentNode.insertBefore(wrap, nm);
+  wrap.appendChild(nm);
+  const clr = el("button", "pj-name-clear", "\u00d7"); clr.type = "button"; clr.setAttribute("aria-label", "Clear the name");
+  clr.onclick = function () { nm.value = ""; nm.focus(); };
+  wrap.appendChild(clr);
+
+  // Private switch
+  const pr = el("label", "pj-priv-row");
+  const cb = el("input"); cb.type = "checkbox"; cb.id = "pjPrivate";
+  pr.appendChild(cb);
+  pr.appendChild(el("span", "", "Private project, only you can see it"));
+  wrap.parentNode.insertBefore(pr, wrap.nextSibling);
+  const privHint = el("p", "hint pj-priv-hint", "Private projects keep notes, tasks and annotations on your own account. They use a letter tile, not an icon.");
+  privHint.hidden = true;
+  pr.parentNode.insertBefore(privHint, pr.nextSibling);
+  cb.onchange = function () {
+    privHint.hidden = !cb.checked;
+    pick.hidden = cb.checked;
+    $("sharedMore").hidden = cb.checked;
+    form.querySelector('button[type="submit"]').textContent = cb.checked ? "Create private project" : "Create project";
+  };
+
+  // Optional details move under "More options"
+  const more = el("details", "pj-more"); more.id = "sharedMore";
+  more.appendChild(el("summary", "", "More options"));
+  ["sharedCourse", "sharedDue", "sharedTemplate"].forEach(function (id) {
+    const lab = form.querySelector('label[for="' + id + '"]');
+    if (lab) more.appendChild(lab);
+    more.appendChild($(id));
+  });
+  const actions = form.querySelector(".form-actions");
+  form.appendChild(more);
+  // Join link
+  const join = el("button", "pj-join-link", "Have a code? Join a project"); join.type = "button"; join.id = "pjJoinLink";
+  join.onclick = function () { $("sharedAdd").open = false; $("sharedJoin").open = true; const f = $("joinCode"); if (f) f.focus(); };
+  form.appendChild(join);
+  const jf = $("joinForm");
+  if (jf && !jf.querySelector(".pj-create-top")) {
+    const jt = el("div", "pj-create-top");
+    jt.appendChild(el("h2", "", "Join a project"));
+    jt.appendChild(el("p", "hint", "Enter the code your team shared with you."));
+    jf.insertBefore(jt, jf.firstChild);
+  }
+}
+function defaultProjectName() {
+  let n = "";
+  try { n = localStorage.getItem("cadence:displayName") || ""; } catch (e) {}
+  n = (n || (me && me.displayName) || "").trim().split(/\s+/)[0];
+  return n ? n + "\u2019s project" : "My project";
+}
 function newProject() {
   if (!me) return;
   buildSheet();
@@ -843,12 +963,15 @@ function newProject() {
   $("sharedJoin").open = false;
   $("projectAdd").open = false;
   $("sharedAdd").open = true;
+  resetCreate();
   const f = $("sharedName");
-  if (f) f.focus();
+  if (f) { f.value = defaultProjectName(); f.focus(); f.select(); }
+  const jl = $("pjJoinLink"); if (jl) jl.hidden = !!admin;
 }
 function closeSheet() {
   if (!document.body.classList.contains("pj-sheet")) return;
   document.body.classList.remove("pj-sheet");
+  resetCreate();
   $("sharedAdd").open = false;
   $("sharedJoin").open = false;
   $("projectAdd").open = false;
@@ -898,6 +1021,14 @@ $("sharedForm").onsubmit = async function (e) {
   if (!me) return;
   const name = $("sharedName").value.trim();
   if (!name) return;
+  if ($("pjPrivate") && $("pjPrivate").checked) {
+    // Private project: hand the details to the private form, which keeps them on this account
+    $("projectName").value = name;
+    $("projectCourse").value = $("sharedCourse").value;
+    $("projectDue").value = $("sharedDue").value;
+    $("projectForm").requestSubmit();
+    return;
+  }
   if (!admin && projects.filter(function (p) { return p.createdBy === me.uid; }).length >= MAX_OWNED) {
     say("You can own up to " + MAX_OWNED + " shared projects. Delete one you no longer need first.");
     return;
@@ -915,11 +1046,20 @@ $("sharedForm").onsubmit = async function (e) {
     } catch (err) {}
     members = [me.uid]; names[me.uid] = nick.slice(0, 30);
   }
+  const base = {
+    name: name.slice(0, 80), course: $("sharedCourse").value.trim().slice(0, 40), due: $("sharedDue").value || "",
+    members: members, names: names, stages: stages, createdBy: me.uid, createdAt: serverTimestamp(), updatedAt: Date.now()
+  };
+  let ref = null, iconDropped = false;
   try {
-    const ref = await addDoc(collection(db, "sharedProjects"), {
-      name: name.slice(0, 80), course: $("sharedCourse").value.trim().slice(0, 40), due: $("sharedDue").value || "",
-      members: members, names: names, stages: stages, createdBy: me.uid, createdAt: serverTimestamp(), updatedAt: Date.now()
-    });
+    ref = await addDoc(collection(db, "sharedProjects"), newIcon ? Object.assign({ icon: newIcon }, base) : base);
+  } catch (err) {
+    if (newIcon) {
+      // The rules may not allow an icon field yet: make the project without it
+      try { ref = await addDoc(collection(db, "sharedProjects"), base); iconDropped = true; } catch (err2) { ref = null; }
+    }
+  }
+  if (ref) {
     $("sharedForm").reset();
     $("sharedTemplate").value = "0";
     $("sharedAdd").open = false;
@@ -927,7 +1067,8 @@ $("sharedForm").onsubmit = async function (e) {
     await load(true);
     const made = projects.filter(function (x) { return x.id === ref.id; })[0];
     if (made) { closeSheet(); openProjectChat(made); }
-  } catch (err) {
+    if (iconDropped) say("Created without the icon. Add the icon field to your Firestore rules, then set it again.");
+  } else {
     say("Couldn't create the project. Make sure the latest rules are published in Firebase.");
   }
   if (btn) btn.disabled = false;
@@ -987,7 +1128,218 @@ onAuthStateChanged(getAuth(), async function (user) {
 });
 
 // Used by the Home "My tasks" list and the bell inbox
+
+// ---- Project Settings and Invite pages (full screen, opened from the chat) ----
+function findProject(id) { return projects.filter(function (x) { return x.id === id; })[0] || null; }
+function pageShell(title) {
+  const root = mk("div", "pj-page");
+  root.setAttribute("role", "dialog"); root.setAttribute("aria-modal", "true"); root.setAttribute("aria-label", title);
+  const head = mk("div", "pj-page-head");
+  const back = mk("button", "secondary pj-sheet-x", "\u2190");
+  back.type = "button"; back.setAttribute("aria-label", "Back");
+  head.appendChild(back); head.appendChild(mk("strong", "pj-page-title", title));
+  const body = mk("div", "pj-page-body");
+  root.appendChild(head); root.appendChild(body);
+  document.body.appendChild(root);
+  function esc(e) {
+    if (e.key !== "Escape") return;
+    const all = document.querySelectorAll(".pj-page");
+    if (all[all.length - 1] !== root) return;
+    e.stopImmediatePropagation(); close();
+  }
+  function close() { root.remove(); document.removeEventListener("keydown", esc, true); }
+  back.onclick = close;
+  document.addEventListener("keydown", esc, true);
+  return { root: root, body: body, close: close };
+}
+function typing(box) {
+  const a = document.activeElement;
+  return !!a && box.contains(a) && (a.tagName === "INPUT" || a.tagName === "TEXTAREA");
+}
+
+async function createInviteCode(p) {
+  const code = makeCode();
+  try {
+    await setDoc(doc(db, "invites", code), { pid: p.id, name: p.name, active: true, createdBy: me.uid, createdAt: serverTimestamp() });
+    if (p.inviteCode) { try { await deleteDoc(doc(db, "invites", p.inviteCode)); } catch (e) {} }
+    if (await patch(p, { inviteCode: code })) render();
+  } catch (e) { say("Couldn't create a code. Make sure the invite rules are published in Firebase."); }
+}
+
+function openInvite(pid) {
+  if (!findProject(pid)) return;
+  const sh = pageShell("Invite a friend");
+  const top = mk("div", "pj-inv-top");
+  const list = mk("div", "pj-inv-list");
+  const search = mk("input", "field pj-inv-search");
+  search.type = "search"; search.placeholder = "Search your friends"; search.setAttribute("aria-label", "Search your friends");
+  const msg = mk("p", "hint pj-inv-msg"); msg.setAttribute("aria-live", "polite");
+  sh.body.appendChild(top); sh.body.appendChild(search); sh.body.appendChild(msg); sh.body.appendChild(list);
+  function drawTop() {
+    const p = findProject(pid);
+    top.textContent = "";
+    if (!p) return;
+    const acts = mk("div", "pj-inv-acts");
+    const act = function (label, glyph, run) {
+      const b = mk("button", "pj-inv-act"); b.type = "button";
+      b.appendChild(mk("span", "pj-inv-ico", glyph)); b.appendChild(mk("small", "", label));
+      b.onclick = run; acts.appendChild(b);
+    };
+    const text = function () { return "Join " + p.name + " on Cadence with the code " + showCode(p.inviteCode); };
+    if (p.inviteCode) {
+      act("Share invite", "\u2934", function () {
+        const data = { title: "Join " + p.name + " on Cadence", text: text(), url: location.origin + location.pathname };
+        if (navigator.share) navigator.share(data).catch(function () {});
+        else (navigator.clipboard ? navigator.clipboard.writeText(text()) : Promise.reject()).then(function () { msg.textContent = "Invite copied."; }, function () { msg.textContent = text(); });
+      });
+      act("Copy code", "\ud83d\udd17", function () {
+        (navigator.clipboard ? navigator.clipboard.writeText(showCode(p.inviteCode)) : Promise.reject()).then(
+          function () { msg.textContent = "Code copied. Send it to your classmates."; },
+          function () { msg.textContent = "Couldn't copy. The code is " + showCode(p.inviteCode) + "."; });
+      });
+    }
+    top.appendChild(acts);
+    if (p.inviteCode) {
+      const c = mk("p", "pj-inv-code");
+      c.appendChild(mk("small", "", "Invite code"));
+      c.appendChild(mk("strong", "sp-code", showCode(p.inviteCode)));
+      top.appendChild(c);
+    } else if (manage(p)) {
+      const mkb = mk("button", "secondary", "Create invite code"); mkb.type = "button";
+      mkb.onclick = function () { mkb.disabled = true; createInviteCode(p); };
+      top.appendChild(mkb);
+      top.appendChild(mk("p", "hint", "Lets classmates join on their own with a code."));
+    }
+  }
+  function drawList() {
+    const p = findProject(pid);
+    list.textContent = "";
+    if (!p) { sh.close(); return; }
+    const friends = window.CadenceFriends ? window.CadenceFriends.list() : [];
+    const q = search.value.trim().toLowerCase();
+    const shown = friends.filter(function (f) { return !q || String(f.nickname || "").toLowerCase().indexOf(q) >= 0 || String(f.handle || "").toLowerCase().indexOf(q) >= 0; });
+    if (!friends.length) { list.appendChild(mk("p", "hint", "You have no friends on Cadence yet. Search a handle in the top bar to add one, or share the code above.")); return; }
+    if (!shown.length) { list.appendChild(mk("p", "hint", "No friends match that search.")); return; }
+    shown.forEach(function (f) {
+      const row = mk("div", "pj-inv-row");
+      row.appendChild(avatarEl(f, "sp-ava", f.nickname));
+      const who = mk("span", "pj-inv-who");
+      who.appendChild(mk("strong", "", f.nickname || ("@" + f.handle)));
+      if (f.handle) who.appendChild(mk("small", "", "@" + f.handle));
+      row.appendChild(who);
+      const inn = p.members.indexOf(f.uid) >= 0;
+      const b = mk("button", inn ? "secondary sp-x" : "sp-x", inn ? "Added" : "Add");
+      b.type = "button"; b.disabled = inn || !manage(p);
+      b.onclick = function () { b.disabled = true; addPeople(p, [f]); };
+      row.appendChild(b);
+      list.appendChild(row);
+    });
+  }
+  function redraw() { if (!document.body.contains(sh.root)) { window.removeEventListener("cadence:sharedprojects:changed", redraw); return; } drawTop(); drawList(); }
+  search.addEventListener("input", drawList);
+  window.addEventListener("cadence:sharedprojects:changed", redraw);
+  drawTop(); drawList();
+}
+
+function openSettings(pid) {
+  if (!findProject(pid)) return;
+  const sh = pageShell("Project settings");
+  let draft = null;
+  function draw() {
+    const p = findProject(pid);
+    if (!p) { sh.close(); return; }
+    const can = manage(p);
+    sh.body.textContent = "";
+    const head = mk("div", "pj-set-head");
+    const ico = mk("button", "pj-icon-pick pj-set-ico" + (p.icon ? " has-icon" : "")); ico.type = "button";
+    ico.setAttribute("aria-label", can ? "Change the project icon" : "Project icon");
+    if (p.icon) ico.style.backgroundImage = "url(" + p.icon + ")";
+    else { ico.appendChild(mk("span", "pj-set-ltr", (p.name.trim().charAt(0) || "?").toUpperCase())); }
+    if (can) {
+      ico.appendChild(mk("span", "pj-icon-plus", "+"));
+      const file = mk("input"); file.type = "file"; file.accept = "image/*"; file.hidden = true;
+      ico.onclick = function () { file.click(); };
+      file.onchange = function () {
+        const f = file.files && file.files[0]; file.value = "";
+        if (!f) return;
+        squareIcon(f, 128).then(async function (d) {
+          if (await patch(p, { icon: d })) { say(""); render(); }
+          else say("Couldn't save the icon. Add an icon field to your Firestore rules for shared projects.");
+        }).catch(function () { say("That picture couldn't be read. Try a JPG or PNG."); });
+      };
+      head.appendChild(file);
+    }
+    head.insertBefore(ico, head.firstChild);
+    head.appendChild(mk("strong", "pj-set-name", p.name));
+    head.appendChild(mk("small", "hint", p.members.length + (p.members.length === 1 ? " member" : " members")));
+    if (can && p.icon) {
+      const rm = mk("button", "secondary sp-x", "Remove icon"); rm.type = "button";
+      rm.onclick = async function () { if (await patch(p, { icon: "" })) render(); };
+      head.appendChild(rm);
+    }
+    sh.body.appendChild(head);
+
+    const inv = mk("button", "pj-set-invite", "Invite people"); inv.type = "button";
+    inv.onclick = function () { openInvite(pid); };
+    sh.body.appendChild(inv);
+
+    const ov = mk("section", "pj-set-sec");
+    ov.appendChild(mk("h3", "", "Overview"));
+    if (can) {
+      const f = mk("form", "pj-set-form"); f.autocomplete = "off";
+      const lab = function (t, id) { const l = mk("label", "", t); l.htmlFor = id; return l; };
+      const name = mk("input", "field"); name.id = "pjSetName"; name.value = p.name; name.maxLength = 80; name.required = true;
+      const course = mk("input", "field"); course.id = "pjSetCourse"; course.value = p.course || ""; course.maxLength = 40; course.setAttribute("list", "courses");
+      const due = mk("input", "field"); due.id = "pjSetDue"; due.type = "date"; due.value = p.due || "";
+      f.appendChild(lab("Project name", "pjSetName")); f.appendChild(name);
+      f.appendChild(lab("Course", "pjSetCourse")); f.appendChild(course);
+      f.appendChild(lab("Due date", "pjSetDue")); f.appendChild(due);
+      const save = mk("button", "", "Save changes"); save.type = "submit";
+      f.appendChild(save);
+      f.onsubmit = async function (e) {
+        e.preventDefault();
+        const n = name.value.trim(); if (!n) return;
+        save.disabled = true;
+        if (await patch(p, { name: n.slice(0, 80), course: course.value.trim().slice(0, 40), due: due.value || "" })) { say("Saved."); render(); }
+        save.disabled = false;
+      };
+      ov.appendChild(f);
+    } else {
+      ov.appendChild(mk("p", "", p.course ? p.name + " \u00b7 " + p.course : p.name));
+      ov.appendChild(mk("p", "hint", p.due ? "Due " + p.due : "No due date"));
+    }
+    sh.body.appendChild(ov);
+    sh.body.appendChild(memberBar(p));
+    if (can) sh.body.appendChild(inviteBox(p));
+    if (can) {
+      const del = mk("button", "secondary sp-delete", "Delete project"); del.type = "button";
+      del.onclick = async function () {
+        if (!confirm("Delete \"" + p.name + "\" for everyone? This can't be undone.")) return;
+        try {
+          if (p.inviteCode) { try { await deleteDoc(doc(db, "invites", p.inviteCode)); } catch (e) {} }
+          await deleteDoc(doc(db, "sharedProjects", p.id));
+          open.delete(p.id);
+          sh.close();
+          if (window.CadenceChat && window.CadenceChat.close) window.CadenceChat.close();
+          await load(true);
+        } catch (e) { say("Couldn't delete. Check your connection and try again."); }
+      };
+      sh.body.appendChild(del);
+    }
+    const note = mk("p", "hint show-msg pj-set-note"); note.id = "pjSetNote"; sh.body.appendChild(note);
+  }
+  function redraw() {
+    if (!document.body.contains(sh.root)) { window.removeEventListener("cadence:sharedprojects:changed", redraw); return; }
+    if (typing(sh.body)) return;
+    const keep = sh.body.scrollTop; draw(); sh.body.scrollTop = keep;
+  }
+  window.addEventListener("cadence:sharedprojects:changed", redraw);
+  draw();
+}
+
 window.CadenceSharedProjects = {
+  settings: openSettings,
+  invite: openInvite,
   list: function () { return projects; },
   uid: function () { return me ? me.uid : ""; },
   reload: function () { return load(true); },

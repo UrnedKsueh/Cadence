@@ -439,6 +439,67 @@ function drawerRow(t, u, kind) {
   return b;
 }
 
+
+// ---- Setup Progress: four first steps for a new project (owner only) ----
+function setupSkipKey(p) { return "cadence:setupSkip:" + p.id; }
+function setupSteps(p) {
+  const has = function (o) { return !!o && typeof o === "object" && Object.keys(o).length > 0; };
+  return [
+    { ico: "\ud83d\udce8", label: "Invite your friends", done: p.members.length > 1 || !!p.inviteCode, run: function () { if (sp() && sp().invite) sp().invite(p.id); } },
+    { ico: "\ud83d\uddbc\ufe0f", label: "Upload a project icon", done: !!p.icon, run: function () { if (sp() && sp().settings) sp().settings(p.id); } },
+    { ico: "\u2708\ufe0f", label: "Send your first message", done: has(p.chatAt), run: function () { const t = threadsOf(p)[0]; if (t) switchTo(t.id); } },
+    { ico: "\ud83d\udcc5", label: "Set a due date", done: !!p.due, run: function () { if (sp() && sp().settings) sp().settings(p.id); } }
+  ];
+}
+function closeSetup() { const o = document.querySelector(".chat-setup-ov"); if (o) o.remove(); }
+function showSetup(p) {
+  closeSetup();
+  const ov = mk("div", "chat-setup-ov");
+  ov.onclick = function (e) { if (e.target === ov) closeSetup(); };
+  const sheet = mk("div", "chat-setup-sheet");
+  sheet.setAttribute("role", "dialog"); sheet.setAttribute("aria-label", "Finish setting up your project");
+  sheet.appendChild(mk("div", "chat-drawer-grip"));
+  const steps = setupSteps(p);
+  const n = steps.filter(function (x) { return x.done; }).length;
+  sheet.appendChild(mk("h3", "chat-setup-h", "Finish setting up your project!"));
+  sheet.appendChild(mk("p", "hint chat-setup-sub", "You have completed " + n + " of " + steps.length + " steps."));
+  steps.forEach(function (st) {
+    const b = mk("button", "chat-setup-row" + (st.done ? " done" : ""));
+    b.type = "button";
+    b.appendChild(mk("span", "chat-setup-ico", st.ico));
+    b.appendChild(mk("span", "chat-setup-lbl", st.label));
+    b.appendChild(mk("span", "chat-setup-go", st.done ? "\u2713" : "\u203a"));
+    b.onclick = function () { closeSetup(); st.run(); };
+    sheet.appendChild(b);
+  });
+  const skip = mk("button", "chat-setup-skip", "Skip these steps");
+  skip.type = "button";
+  skip.onclick = function () { try { localStorage.setItem(setupSkipKey(p), "1"); } catch (e) {} closeSetup(); if (ui && cur) fillPicker(); };
+  sheet.appendChild(skip);
+  ov.appendChild(sheet);
+  document.body.appendChild(ov);
+}
+function setupCard(p) {
+  if (!manage(p)) return null;
+  try { if (localStorage.getItem(setupSkipKey(p))) return null; } catch (e) {}
+  const steps = setupSteps(p);
+  const n = steps.filter(function (x) { return x.done; }).length;
+  if (n >= steps.length) return null;
+  const next = steps.filter(function (x) { return !x.done; })[0];
+  const b = mk("button", "chat-setup-card");
+  b.type = "button";
+  b.setAttribute("aria-label", "Setup progress, " + n + " of " + steps.length + " steps done");
+  b.appendChild(mk("span", "chat-setup-wand", "\u2728"));
+  const tx = mk("span", "chat-setup-tx");
+  tx.appendChild(mk("strong", "", "Setup Progress"));
+  tx.appendChild(mk("small", "", "Step " + (n + 1) + " of " + steps.length + ": " + next.label));
+  b.appendChild(tx);
+  const ring = mk("span", "chat-setup-ring"); ring.style.setProperty("--pct", String(Math.round(n / steps.length * 100)));
+  b.appendChild(ring);
+  b.onclick = function () { showSetup(p); };
+  return b;
+}
+
 function fillPicker() {
   const u = unreadFor(cur.p);
   const others = threadsOf(cur.p).some(function (t) { return u.threads.has(t.id) && t.id !== cur.tid; });
@@ -451,7 +512,21 @@ function fillPicker() {
   const panel = ui.panel;
   panel.textContent = "";
   panel.appendChild(mk("div", "chat-drawer-grip"));
-  panel.appendChild(mk("h3", "chat-drawer-title", cur.p.name));
+  const ttl = mk("h3", "chat-drawer-title");
+  const phd = mk("button", "chat-proj-hd");
+  phd.type = "button";
+  phd.setAttribute("aria-label", cur.p.name + " settings");
+  const pico = mk("span", "chat-proj-ico");
+  if (typeof cur.p.icon === "string" && cur.p.icon.indexOf("data:image/") === 0) { pico.style.backgroundImage = "url(" + cur.p.icon + ")"; pico.classList.add("has-icon"); }
+  else pico.textContent = (cur.p.name.trim().charAt(0) || "?").toUpperCase();
+  const ptx = mk("span", "chat-proj-ttl");
+  ptx.appendChild(mk("strong", "", cur.p.name));
+  const pmem = cur.p.members.length;
+  ptx.appendChild(mk("small", "", pmem + (pmem === 1 ? " member" : " members")));
+  phd.appendChild(pico); phd.appendChild(ptx); phd.appendChild(mk("span", "chat-proj-caret", "\u203a"));
+  phd.onclick = function () { if (sp() && sp().settings) sp().settings(cur.p.id); };
+  ttl.appendChild(phd);
+  panel.appendChild(ttl);
   // Progress sits above the channels
   const nStages = cur.p.stages.length;
   const nDone = cur.p.stages.filter(function (s) { return s.status === "Done"; }).length;
@@ -466,6 +541,8 @@ function fillPicker() {
   pbar.appendChild(pfill);
   prog.appendChild(pbar);
   panel.appendChild(prog);
+  const setupEl = setupCard(cur.p);
+  if (setupEl) panel.appendChild(setupEl);
   // Portrait home screen only (hidden by CSS elsewhere)
   const hacts = mk("div", "chat-home-acts");
   const hSt = mk("button", "secondary", "Stages (" + nStages + ")");
@@ -478,7 +555,11 @@ function fillPicker() {
   const hFi = mk("button", "secondary", "Search");
   hFi.type = "button";
   hFi.onclick = function () { openFind("search"); };
-  hacts.appendChild(hFi); hacts.appendChild(hSt); hacts.appendChild(hPe);
+  const hIn = mk("button", "secondary", "Invite");
+  hIn.type = "button";
+  hIn.onclick = function () { if (sp() && sp().invite) sp().invite(cur.p.id); };
+  hPe.onclick = function () { if (sp() && sp().settings) sp().settings(cur.p.id); };
+  hacts.appendChild(hIn); hacts.appendChild(hFi); hacts.appendChild(hSt); hacts.appendChild(hPe);
   panel.appendChild(hacts);
   const jt = mk("button", "chat-jumpto");
   jt.type = "button";
@@ -1569,7 +1650,10 @@ function drawRail() {
     const c = railColor(p.name);
     b.style.color = c;
     b.style.backgroundColor = "color-mix(in srgb, " + c + " 22%, var(--panel))";
-    b.appendChild(mk("span", "chat-ptile-ltr", (p.name.trim().charAt(0) || "?").toUpperCase()));
+    if (typeof p.icon === "string" && p.icon.indexOf("data:image/") === 0) {
+      b.classList.add("has-icon");
+      b.style.backgroundImage = "url(" + p.icon + ")";
+    } else b.appendChild(mk("span", "chat-ptile-ltr", (p.name.trim().charAt(0) || "?").toUpperCase()));
     const n = unreadFor(p).threads.size;
     if (n && p.id !== cur.p.id) b.appendChild(mk("span", "chat-ptile-badge", n > 99 ? "99+" : String(n)));
     b.onclick = function () { if (p.id !== cur.p.id) openChat(p, ""); };
