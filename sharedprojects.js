@@ -788,13 +788,76 @@ function renderDue() {
 function enter() {
   if (!me) return false;
   if (!loaded) { pendingEnter = true; return false; }
-  if (!projects.length) return false;
+  if (!projects.length) {
+    // No shared project yet: open a private project's notes if there is one
+    const pr = window.CadencePrivate ? window.CadencePrivate.list() : [];
+    if (pr.length && window.CadenceChat && window.CadenceChat.openPrivate) {
+      let lid = "";
+      try { lid = localStorage.getItem("cadence:lastPrivate") || ""; } catch (e) {}
+      window.CadenceChat.openPrivate(pr.filter(function (x) { return x.id === lid; })[0] ? lid : pr[0].id);
+      return true;
+    }
+    return false;
+  }
   let id = "";
   try { id = localStorage.getItem("cadence:lastProject") || ""; } catch (e) {}
   const p = projects.filter(function (x) { return x.id === id; })[0] || projects[0];
   openProjectChat(p);
   return true;
 }
+// New project sheet: the create form floats over the chat instead of opening the Projects page
+let sheetBuilt = false;
+function buildSheet() {
+  if (sheetBuilt) return;
+  sheetBuilt = true;
+  const sec = $("sharedSection");
+  const head = document.createElement("div");
+  head.className = "pj-sheet-head";
+  const t = document.createElement("strong");
+  t.textContent = "New project";
+  const x = document.createElement("button");
+  x.type = "button"; x.className = "secondary pj-sheet-x"; x.textContent = "Close";
+  x.setAttribute("aria-label", "Close");
+  x.onclick = closeSheet;
+  head.appendChild(t); head.appendChild(x);
+  sec.insertBefore(head, sec.firstChild);
+  const bd = document.createElement("div");
+  bd.id = "pjSheetBackdrop";
+  bd.onclick = closeSheet;
+  document.body.appendChild(bd);
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && document.body.classList.contains("pj-sheet")) { e.stopImmediatePropagation(); closeSheet(); }
+  }, true);
+  const forms = ["sharedAdd", "sharedJoin", "projectAdd"];
+  forms.forEach(function (fid) {
+    $(fid).addEventListener("toggle", function () {
+      if ($(fid).open && document.body.classList.contains("pj-sheet")) forms.forEach(function (o) { if (o !== fid) $(o).open = false; });
+    });
+  });
+}
+function newProject() {
+  if (!me) return;
+  buildSheet();
+  $("panel-projects").hidden = false;
+  document.body.classList.add("pj-sheet");
+  $("sharedJoin").open = false;
+  $("projectAdd").open = false;
+  $("sharedAdd").open = true;
+  const f = $("sharedName");
+  if (f) f.focus();
+}
+function closeSheet() {
+  if (!document.body.classList.contains("pj-sheet")) return;
+  document.body.classList.remove("pj-sheet");
+  $("sharedAdd").open = false;
+  $("sharedJoin").open = false;
+  $("projectAdd").open = false;
+  if (location.hash !== "#projects") $("panel-projects").hidden = true;
+}
+window.addEventListener("cadence:private:added", function (e) {
+  closeSheet();
+  if (window.CadenceChat && window.CadenceChat.openPrivate) window.CadenceChat.openPrivate(e.detail);
+});
 function openForm(id) {
   const d = $(id);
   if (!d) return;
@@ -863,7 +926,7 @@ $("sharedForm").onsubmit = async function (e) {
     open.add(ref.id);
     await load(true);
     const made = projects.filter(function (x) { return x.id === ref.id; })[0];
-    if (made) openProjectChat(made);
+    if (made) { closeSheet(); openProjectChat(made); }
   } catch (err) {
     say("Couldn't create the project. Make sure the latest rules are published in Firebase.");
   }
@@ -897,7 +960,7 @@ $("joinForm").onsubmit = async function (e) {
         await load(true);
         say("You joined " + String(inv.data().name || "the project") + ".");
         const joined = projects.filter(function (x) { return x.id === pid; })[0];
-        if (joined) openProjectChat(joined);
+        if (joined) { closeSheet(); openProjectChat(joined); }
       }
     }
   } catch (err) {
@@ -933,5 +996,6 @@ window.CadenceSharedProjects = {
   panel: projectPanel,
   addPeople: addPeople,
   show: showProject,
-  enter: enter
+  enter: enter,
+  newProject: newProject
 };

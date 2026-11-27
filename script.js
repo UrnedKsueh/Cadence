@@ -67,6 +67,22 @@ function cleanItem(c) {
   return { id: typeof c.id === "string" ? c.id : uid(), label: c.label.trim().slice(0, 80), done: c.done === true };
 }
 
+// Private notes: notes, tasks, pins and annotations that live inside a private project
+function cleanNote(n) {
+  if (!n || typeof n.text !== "string" || n.text.trim() === "") return null;
+  return {
+    id: typeof n.id === "string" ? n.id : uid(),
+    text: n.text.trim().slice(0, 500),
+    t: Number(n.t) || Date.now(),
+    kind: n.kind === "todo" ? "todo" : "note",
+    done: n.done === true,
+    pin: n.pin === true,
+    ann: Array.isArray(n.ann) ? n.ann.filter(function (a) { return a && typeof a.text === "string" && a.text.trim() !== ""; }).map(function (a) {
+      return { id: typeof a.id === "string" ? a.id : uid(), text: a.text.trim().slice(0, 300), t: Number(a.t) || Date.now() };
+    }).slice(0, 20) : []
+  };
+}
+
 function starterChecklist() {
   return CHECKLIST_TEMPLATE.map(function (label) { return cleanItem({ label: label }); });
 }
@@ -89,7 +105,8 @@ function cleanProject(p) {
     fps: FPS_CHOICES.indexOf(Number(p.fps)) >= 0 ? Number(p.fps) : 24,
     target: Math.min(36000, Math.max(0, Number(p.target) || 0)),
     shots: Array.isArray(p.shots) ? p.shots.map(cleanShot).filter(Boolean).slice(0, 200) : [],
-    checklist: Array.isArray(p.checklist) ? p.checklist.map(cleanItem).filter(Boolean).slice(0, 50) : []
+    checklist: Array.isArray(p.checklist) ? p.checklist.map(cleanItem).filter(Boolean).slice(0, 50) : [],
+    notes: Array.isArray(p.notes) ? p.notes.map(cleanNote).filter(Boolean).slice(-80) : []
   };
 }
 
@@ -845,6 +862,24 @@ $("projectForm").onsubmit = function (event) {
   if (li) {
     li.classList.add("just-added");
     li.scrollIntoView({ block: "center", behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+  }
+  window.dispatchEvent(new CustomEvent("cadence:private:added", { detail: added.id }));
+};
+
+// The chat workspace reads and writes private notes through this, so there is one copy of the data
+window.CadencePrivate = {
+  list: function () {
+    return projects.map(function (p) { return { id: p.id, name: p.name, course: p.course, due: p.due, count: p.notes.length }; });
+  },
+  notes: function (id) {
+    const p = projects.filter(function (x) { return x.id === id; })[0];
+    return p ? p.notes.slice() : null;
+  },
+  save: function (id, notes) {
+    const p = projects.filter(function (x) { return x.id === id; })[0];
+    if (!p) return false;
+    p.notes = notes.map(cleanNote).filter(Boolean).slice(-80);
+    return store(KEYS.projects, projects) !== false;
   }
 };
 

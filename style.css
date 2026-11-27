@@ -2292,3 +2292,29 @@ main { padding-bottom: calc(32px + env(safe-area-inset-bottom, 0px)) !important;
   /* sheets opened from the home screen stay bottom sheets above everything */
   .chat-overlay.chat-home > .chat-drawer:not(.chat-channels) { grid-column: 1 / -1; grid-row: 1; }
 }
+
+/* New project sheet (opened from the chat rail +) */
+.pj-sheet-head, #pjSheetBackdrop { display: none; }
+body.pj-sheet #pjSheetBackdrop { display: block; position: fixed; inset: 0; z-index: 1290; background-color: rgba(0, 0, 0, 0.45); }
+body.pj-sheet #panel-projects { position: fixed; left: 50%; bottom: 0; transform: translateX(-50%); width: min(560px, 100%); max-height: 88vh; overflow-y: auto; box-sizing: border-box; margin: 0; padding: 16px 16px calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 1300; background-color: var(--panel); border-radius: 22px 22px 0 0; box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.35); }
+body.pj-sheet #panel-projects > :not(#sharedSection) { display: none !important; }
+body.pj-sheet #sharedSection > :not(.pj-sheet-head):not(#sharedAdd):not(#sharedJoin):not(#projectAdd):not(#sharedMsg) { display: none !important; }
+body.pj-sheet .pj-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; font-size: 1.15rem; }
+body.pj-sheet #sharedSection details { margin-bottom: 10px; }
+
+/* Private projects: a notes space (note, task, pin, annotate) */
+.chat-rail-sep { flex: none; width: 28px; height: 2px; border-radius: 2px; background-color: rgba(255, 255, 255, 0.16); }
+.chat-ptile-priv { position: relative; }
+.chat-overlay .chat-ptile.chat-ptile-priv { border: 2px dashed currentColor; box-sizing: border-box; }
+.chat-ptile-lock { position: absolute; right: -4px; bottom: -4px; width: 18px; height: 18px; border-radius: 9px; display: grid; place-items: center; background-color: var(--rail, #11141c); color: #cfd6e6; }
+.pv-switch { max-width: 42vw; min-height: 36px; margin-left: auto; }
+.pv-mode { flex: none; min-height: 40px; padding: 0 12px; border-radius: 12px; }
+.pv-todo { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; }
+.pv-todo input { flex: none; width: 20px; height: 20px; margin: 2px 0 0; }
+.pv-done { text-decoration: line-through; opacity: 0.6; }
+.pv-pinned { border-left: 3px solid var(--accent); }
+.pv-ann { display: flex; gap: 8px; align-items: baseline; margin-top: 6px; padding-left: 8px; border-left: 2px solid var(--line); font-size: 0.9rem; color: var(--muted); }
+.pv-ann-text { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.pv-ann-form { display: flex; gap: 6px; align-items: center; margin-top: 8px; }
+.pv-ann-form .field { flex: 1; min-width: 0; }
+.pv-edit { width: 100%; box-sizing: border-box; margin-top: 6px; }

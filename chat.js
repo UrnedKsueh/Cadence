@@ -1575,6 +1575,25 @@ function drawRail() {
     b.onclick = function () { if (p.id !== cur.p.id) openChat(p, ""); };
     rail.appendChild(b);
   });
+  const priv = window.CadencePrivate ? window.CadencePrivate.list() : [];
+  if (priv.length) {
+    rail.appendChild(mk("div", "chat-rail-sep"));
+    priv.forEach(function (pp) {
+      const b = mk("button", "chat-ptile chat-ptile-priv");
+      b.type = "button";
+      b.title = "Private: " + pp.name;
+      b.setAttribute("aria-label", "Private project " + pp.name);
+      const c = railColor(pp.name);
+      b.style.color = c;
+      b.style.backgroundColor = "color-mix(in srgb, " + c + " 14%, var(--panel))";
+      b.appendChild(mk("span", "chat-ptile-ltr", (pp.name.trim().charAt(0) || "?").toUpperCase()));
+      const lock = mk("span", "chat-ptile-lock");
+      lock.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+      b.appendChild(lock);
+      b.onclick = function () { openPrivate(pp.id); };
+      rail.appendChild(b);
+    });
+  }
   const ICO = function (d) { return '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' + d + '</svg>'; };
   const add = mk("button", "chat-rail-btn chat-rail-add");
   add.type = "button";
@@ -1582,6 +1601,8 @@ function drawRail() {
   add.setAttribute("aria-label", "New project");
   add.innerHTML = ICO('<path d="M12 5v14M5 12h14"/>');
   add.onclick = function () {
+    // New project opens as a sheet over the chat, no page change
+    if (window.CadenceSharedProjects && window.CadenceSharedProjects.newProject) { window.CadenceSharedProjects.newProject(); return; }
     close();
     if (window.showTab) window.showTab("projects", true);
     setTimeout(function () { const n = document.getElementById("sharedNewBtn"); if (n) n.click(); }, 60);
@@ -1776,6 +1797,229 @@ function closeSaved() {
   if (sp() && sp().rerender) sp().rerender();
 }
 
+// ---- Private projects: a private notes space for each one (notes, tasks, pins, annotations) ----
+const PV_MAX = 80;
+let pv = null;
+function pvApi() { return window.CadencePrivate || null; }
+function pvInfo(id) { const a = pvApi() ? pvApi().list() : []; return a.filter(function (x) { return x.id === id; })[0] || null; }
+function pvNotes() { const n = pvApi() && pv ? pvApi().notes(pv.id) : null; return n || []; }
+function pvSave(notes) {
+  if (!pvApi() || !pvApi().save(pv.id, notes)) { alert("Couldn't save. This browser may be blocking storage."); return false; }
+  return true;
+}
+function pvId() { return Math.random().toString(36).slice(2, 9); }
+function pvChange(id, fn) {
+  const notes = pvNotes();
+  const n = notes.filter(function (x) { return x.id === id; })[0];
+  if (!n) return;
+  fn(n);
+  if (pvSave(notes)) pvRender(false);
+}
+function pvBuild() {
+  if (pv) return pv;
+  const root = mk("div", "chat-overlay chat-saved chat-private");
+  root.hidden = true;
+  root.setAttribute("role", "dialog");
+  root.setAttribute("aria-modal", "true");
+  root.setAttribute("aria-label", "Private project");
+  const head = mk("div", "chat-head");
+  const back = mk("button", "secondary chat-back", "\u2190");
+  back.type = "button"; back.setAttribute("aria-label", "Close private project");
+  const titles = mk("div", "chat-titles");
+  const title = mk("strong", "chat-title", "");
+  const sub = mk("small", "chat-title-sub", "");
+  titles.appendChild(title); titles.appendChild(sub);
+  const sel = mk("select", "field pv-switch");
+  sel.setAttribute("aria-label", "Switch private project");
+  head.appendChild(back); head.appendChild(titles); head.appendChild(sel);
+  const list = mk("div", "chat-list");
+  const form = mk("form", "chat-form");
+  form.autocomplete = "off";
+  const mode = mk("button", "secondary pv-mode", "Note");
+  mode.type = "button"; mode.setAttribute("aria-label", "Entry type: note. Tap to switch to task");
+  const box = mk("textarea", "field chat-input");
+  box.rows = 1; box.maxLength = 500; box.placeholder = "Write a note";
+  box.setAttribute("aria-label", "New entry");
+  const send = mk("button", "chat-send", "\u2191");
+  send.type = "submit"; send.setAttribute("aria-label", "Add");
+  form.appendChild(mode); form.appendChild(box); form.appendChild(send);
+  root.appendChild(head); root.appendChild(list); root.appendChild(form);
+  document.body.appendChild(root);
+  pv = { root: root, title: title, sub: sub, sel: sel, list: list, box: box, mode: mode, kind: "note", id: "", open: "", annFor: "", editId: "" };
+  box.addEventListener("input", function () { box.style.height = "auto"; box.style.height = Math.min(box.scrollHeight, 120) + "px"; });
+  mode.onclick = function () {
+    pv.kind = pv.kind === "note" ? "todo" : "note";
+    mode.textContent = pv.kind === "todo" ? "Task" : "Note";
+    box.placeholder = pv.kind === "todo" ? "Add a task" : "Write a note";
+    mode.setAttribute("aria-label", pv.kind === "todo" ? "Entry type: task. Tap to switch to note" : "Entry type: note. Tap to switch to task");
+  };
+  form.onsubmit = function (e) {
+    e.preventDefault();
+    const t = box.value.trim();
+    if (!t) return;
+    const notes = pvNotes();
+    if (notes.length >= PV_MAX) { alert("A private project keeps up to " + PV_MAX + " entries. Delete some first."); return; }
+    notes.push({ id: pvId(), text: t.slice(0, 500), t: Date.now(), kind: pv.kind, done: false, pin: false, ann: [] });
+    if (!pvSave(notes)) return;
+    box.value = ""; box.style.height = "auto";
+    pvRender(true);
+  };
+  sel.onchange = function () { pvShow(sel.value); };
+  back.onclick = closePrivate;
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && !root.hidden) { e.stopImmediatePropagation(); closePrivate(); }
+  }, true);
+  return pv;
+}
+function pvHeader() {
+  const all = pvApi() ? pvApi().list() : [];
+  const info = pvInfo(pv.id);
+  pv.title.textContent = info ? info.name : "Private project";
+  const bits = ["Private, only you"];
+  if (info && info.course) bits.push(info.course);
+  if (info && info.due) bits.push("due " + info.due);
+  pv.sub.textContent = bits.join(" \u00b7 ");
+  pv.sel.textContent = "";
+  all.forEach(function (x) { const o = document.createElement("option"); o.value = x.id; o.textContent = x.name; if (x.id === pv.id) o.selected = true; pv.sel.appendChild(o); });
+  pv.sel.hidden = all.length < 2;
+}
+function pvShow(id) {
+  if (!pvInfo(id)) return;
+  pv.id = id; pv.open = ""; pv.annFor = ""; pv.editId = "";
+  try { localStorage.setItem("cadence:lastPrivate", id); } catch (e) {}
+  pvHeader();
+  pvRender(true);
+}
+function pvRow(n) {
+  const wrap = mk("div", "chat-row chat-row-mine");
+  const row = mk("div", "chat-msg chat-mine" + (n.pin ? " pv-pinned" : ""));
+  const meta = mk("div", "chat-meta");
+  meta.appendChild(mk("small", "", (n.pin ? "Pinned \u00b7 " : "") + (n.kind === "todo" ? "Task \u00b7 " : "") + timeLabel(n.t)));
+  row.appendChild(meta);
+  const dots = mk("button", "chat-dots", "\u22ef");
+  dots.type = "button"; dots.setAttribute("aria-label", "Entry actions");
+  dots.setAttribute("aria-expanded", pv.open === n.id ? "true" : "false");
+  dots.onclick = function () { pv.open = pv.open === n.id ? "" : n.id; pvRender(false); };
+  row.appendChild(dots);
+  if (pv.editId === n.id) {
+    const ta = mk("textarea", "field pv-edit");
+    ta.rows = 3; ta.maxLength = 500; ta.value = n.text;
+    ta.setAttribute("aria-label", "Edit entry");
+    const acts = mk("div", "chat-actions");
+    const ok = mk("button", "chat-act", "Save");
+    ok.type = "button";
+    ok.onclick = function () { const v = ta.value.trim(); if (!v) return; pv.editId = ""; pvChange(n.id, function (x) { x.text = v.slice(0, 500); }); };
+    const no = mk("button", "chat-act", "Cancel");
+    no.type = "button";
+    no.onclick = function () { pv.editId = ""; pvRender(false); };
+    acts.appendChild(ok); acts.appendChild(no);
+    row.appendChild(ta); row.appendChild(acts);
+    setTimeout(function () { ta.focus(); }, 0);
+  } else if (n.kind === "todo") {
+    const lab = mk("label", "pv-todo");
+    const cb = document.createElement("input");
+    cb.type = "checkbox"; cb.checked = n.done;
+    cb.onchange = function () { pvChange(n.id, function (x) { x.done = cb.checked; }); };
+    const txt = linkify(n.text);
+    if (n.done) txt.classList.add("pv-done");
+    lab.appendChild(cb); lab.appendChild(txt);
+    row.appendChild(lab);
+  } else {
+    row.appendChild(linkify(n.text));
+  }
+  n.ann.forEach(function (a) {
+    const line = mk("div", "pv-ann");
+    line.appendChild(mk("span", "pv-ann-text", "\u21b3 " + a.text));
+    line.appendChild(mk("small", "", timeLabel(a.t)));
+    const x = mk("button", "chat-dots pv-ann-x", "\u2715");
+    x.type = "button"; x.setAttribute("aria-label", "Remove annotation");
+    x.onclick = function () { pvChange(n.id, function (y) { y.ann = y.ann.filter(function (z) { return z.id !== a.id; }); }); };
+    line.appendChild(x);
+    row.appendChild(line);
+  });
+  if (pv.annFor === n.id) {
+    const f = mk("form", "pv-ann-form");
+    f.autocomplete = "off";
+    const inp = mk("input", "field");
+    inp.type = "text"; inp.maxLength = 300; inp.placeholder = "Add an annotation";
+    inp.setAttribute("aria-label", "Annotation");
+    const go = mk("button", "chat-act", "Add");
+    go.type = "submit";
+    const no = mk("button", "chat-act", "Cancel");
+    no.type = "button";
+    no.onclick = function () { pv.annFor = ""; pvRender(false); };
+    f.onsubmit = function (e) {
+      e.preventDefault();
+      const v = inp.value.trim();
+      if (!v) return;
+      pv.annFor = "";
+      pvChange(n.id, function (x) { if (x.ann.length < 20) x.ann.push({ id: pvId(), text: v.slice(0, 300), t: Date.now() }); });
+    };
+    f.appendChild(inp); f.appendChild(go); f.appendChild(no);
+    row.appendChild(f);
+    setTimeout(function () { inp.focus(); }, 0);
+  }
+  if (pv.open === n.id) {
+    const bar = mk("div", "chat-actions");
+    function act(label, fn, danger) {
+      const b = mk("button", "chat-act" + (danger ? " danger" : ""), label);
+      b.type = "button";
+      b.onclick = function () { pv.open = ""; fn(); };
+      bar.appendChild(b);
+    }
+    act(n.pin ? "Unpin" : "Pin", function () { pvChange(n.id, function (x) { x.pin = !x.pin; }); });
+    act("Annotate", function () { pv.annFor = n.id; pvRender(false); });
+    act("Edit", function () { pv.editId = n.id; pvRender(false); });
+    act(n.kind === "todo" ? "Make note" : "Make task", function () { pvChange(n.id, function (x) { x.kind = x.kind === "todo" ? "note" : "todo"; x.done = false; }); });
+    act("Copy", function () { if (navigator.clipboard) navigator.clipboard.writeText(n.text).catch(function () {}); pvRender(false); });
+    act("Delete", function () { const rest = pvNotes().filter(function (x) { return x.id !== n.id; }); if (pvSave(rest)) pvRender(false); }, true);
+    row.appendChild(bar);
+  }
+  wrap.appendChild(row);
+  return wrap;
+}
+function pvRender(stick) {
+  const list = pv.list;
+  list.textContent = "";
+  const notes = pvNotes();
+  if (!notes.length) list.appendChild(mk("p", "hint chat-empty", "Nothing here yet. Write a note below, or tap Note to switch to Task for a to-do. Use \u22ef on any entry to pin, edit or annotate it."));
+  const pinned = notes.filter(function (n) { return n.pin; });
+  if (pinned.length) {
+    list.appendChild(mk("div", "chat-day", "Pinned"));
+    pinned.forEach(function (n) { list.appendChild(pvRow(n)); });
+  }
+  let day = "";
+  notes.filter(function (n) { return !n.pin; }).forEach(function (n) {
+    const d = dayLabel(n.t);
+    if (d !== day) { day = d; list.appendChild(mk("div", "chat-day", d)); }
+    list.appendChild(pvRow(n));
+  });
+  if (stick !== false) list.scrollTop = list.scrollHeight;
+}
+function openPrivate(id) {
+  if (!me || !pvApi()) return;
+  const all = pvApi().list();
+  if (!all.length) return;
+  pvBuild();
+  const pick = pvInfo(id) || all[0];
+  pv.kind = "note"; pv.mode.textContent = "Note"; pv.box.placeholder = "Write a note";
+  pvShow(pick.id);
+  pv.root.hidden = false;
+  document.body.classList.add("chat-open");
+}
+function closePrivate() {
+  if (pv) pv.root.hidden = true;
+  const chatOpen = ui && !ui.root.hidden;
+  if (!chatOpen) {
+    document.body.classList.remove("chat-open");
+    if (location.hash === "#projects" && window.showTab) window.showTab("home");
+  }
+}
+window.addEventListener("cadence:privateprojects:changed", function () {
+  if (ui && cur && !ui.root.hidden) drawRail();
+  if (pv && !pv.root.hidden) { if (!pvInfo(pv.id)) closePrivate(); else { pvHeader(); } }
+});
+
 // ---- Home inbox: every project chat in one list ----
 let inboxFilter = "";
 function ago(t) {
@@ -1859,7 +2103,7 @@ document.addEventListener("click", function (e) {
   if (tb && tb.dataset.tab !== "projects") close();
 });
 
-window.CadenceChat = { openProject: openProject, notice: notice, close: close, button: button, stageButton: stageButton, open: openChat, log: log, unreadFor: unreadFor, inbox: renderInbox, tiles: tiles };
+window.CadenceChat = { openPrivate: openPrivate, openProject: openProject, notice: notice, close: close, button: button, stageButton: stageButton, open: openChat, log: log, unreadFor: unreadFor, inbox: renderInbox, tiles: tiles };
 
 document.addEventListener("visibilitychange", function () {
   if (document.visibilityState === "hidden") { flushSeen(); return; }
