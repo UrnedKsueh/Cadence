@@ -380,10 +380,14 @@ window.addEventListener("cadence:sharedprojects:changed", function () {
   }
 });
 
+// The header names the channel or stage being viewed (the project name lives in the channel list)
+function titleName() {
+  return (isStageTid(cur.p, cur.tid) ? "" : "# ") + threadLabel(cur.tid).replace(/^# /, "");
+}
 function setTitle() {
   const n = cur.p.members.length;
   ui.title.textContent = "";
-  ui.title.appendChild(mk("span", "chat-title-name", cur.p.name));
+  ui.title.appendChild(mk("span", "chat-title-name", titleName()));
   ui.title.appendChild(mk("small", "chat-title-sub", n + (n === 1 ? " person" : " people") + " \u203a"));
   renderPeople();
 }
@@ -508,6 +512,9 @@ function fillPicker() {
   ui.pick.appendChild(mk("span", "chat-pick-label", (isStage ? "" : "# ") + threadLabel(cur.tid).replace(/^# /, "")));
   ui.pick.appendChild(mk("span", "chat-pick-caret", "\u25be"));
   if (others) ui.pick.appendChild(mk("span", "chat-badge", "\u25cf"));
+  const tn = ui.title.querySelector(".chat-title-name");
+  if (tn) tn.textContent = titleName();
+  ui.back.classList.toggle("has-unread", others);
   const can = manage(cur.p);
   const panel = ui.panel;
   panel.textContent = "";

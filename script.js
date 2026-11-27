@@ -1775,15 +1775,36 @@ function resetShowForm() {
   $("showYear").value = new Date().getFullYear();
   $("showCourse").dispatchEvent(new Event("input")); // repaints the course chips
   clearThumbPreview();
-  $("showMore").open = false;
+  closeExtras();
   renderToolChips();
+  syncPost();
 }
+
+// Facebook-style composer: Post stays off until there is a title; Course, Tools and Role open only when tapped
+function syncPost() { $("showPost").disabled = !$("showTitle").value.trim(); }
+function closeExtras() {
+  document.querySelectorAll("#showForm [data-extra]").forEach(function (b) {
+    $(b.dataset.extra).hidden = true;
+    b.setAttribute("aria-pressed", "false");
+  });
+}
+document.querySelectorAll("#showForm [data-extra]").forEach(function (b) {
+  b.onclick = function () {
+    const box = $(b.dataset.extra);
+    box.hidden = !box.hidden;
+    b.setAttribute("aria-pressed", box.hidden ? "false" : "true");
+    if (!box.hidden) { const f = box.querySelector("input"); if (f) f.focus(); }
+  };
+});
+$("showTitle").addEventListener("input", syncPost);
+$("showThumbClear").onclick = function () { $("showThumb").value = ""; clearThumbPreview(); };
 
 function clearThumbPreview() {
   const img = $("showThumbPreview");
   if (img.src.indexOf("blob:") === 0) URL.revokeObjectURL(img.src);
   img.removeAttribute("src");
   img.hidden = true;
+  $("showThumbClear").hidden = true;
 }
 
 $("showThumb").onchange = function () {
@@ -1793,6 +1814,7 @@ $("showThumb").onchange = function () {
   const img = $("showThumbPreview");
   img.src = URL.createObjectURL(file);
   img.hidden = false;
+  $("showThumbClear").hidden = false;
 };
 
 // Opening the form puts the cursor in Title, so you can type straight away
@@ -1805,7 +1827,7 @@ $("showCancel").onclick = function () {
 };
 $("showUrl").addEventListener("input", function () { $("showUrl").setCustomValidity(""); });
 $("showTitle").addEventListener("keydown", function (event) {
-  if (event.key === "Enter") { event.preventDefault(); $("showUrl").focus(); }
+  if (event.key === "Enter") { event.preventDefault(); $("showNote").focus(); }
 });
 $("showClear").onclick = function () {
   showTool = "";

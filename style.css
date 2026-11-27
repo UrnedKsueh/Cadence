@@ -857,31 +857,39 @@ html.share-view #shareView { display: block; max-width: 720px; margin: 0 auto; p
 /* ===== Showcase panel: easier adding, calmer filters ===== */
 /* Primary "Add a piece" button */
 .add-piece { margin: 4px 0 14px; }
+/* Closed: a "What did you finish?" bar, like the Facebook post box */
 .add-piece > summary {
-  min-height: 50px; justify-content: center; gap: 10px;
-  background-color: var(--accent); color: var(--bg); border-color: transparent;
-  font-weight: 650; font-size: 1rem; border-radius: var(--r-md);
+  min-height: 48px; justify-content: flex-start; gap: 0; padding: 10px 18px;
+  background-color: var(--bg); color: var(--muted); border: 1px solid var(--line);
+  font-weight: 500; font-size: 1rem; border-radius: 999px;
 }
-.add-piece > summary::before { content: "+"; font-size: 1.4rem; line-height: 1; font-weight: 500; }
-.add-piece > summary::after { border-color: var(--bg); }
-.add-piece > summary:hover { border-color: transparent; filter: brightness(1.08); }
-.add-piece[open] > summary { margin-bottom: 14px; }
-.add-piece > form {
-  padding: 16px; border: 1px solid var(--line); border-radius: var(--r-md); background-color: var(--bg);
-}
+.add-piece > summary::before, .add-piece > summary::after { content: none; display: none; }
+.add-piece > summary:hover { border-color: var(--muted); filter: none; }
+.add-piece[open] > summary { display: none; }
+/* Open: one simple card */
+.add-piece > form { padding: 0; border: 0; background: none; }
+.add-piece .field { background-color: var(--panel); margin-bottom: 10px; }
+.add-piece .composer-title { font-weight: 600; font-size: 1.05rem; }
+.add-piece textarea.field { resize: none; min-height: 84px; font-family: inherit; line-height: 1.45; }
 .add-piece label { margin-top: 2px; }
-.add-piece .field { background-color: var(--panel); }
-.add-piece textarea.field { resize: vertical; min-height: 84px; font-family: inherit; line-height: 1.45; }
 .add-piece .course-bar { margin-top: 0; }
 .add-piece .tool-bar { margin: 2px 0 10px; }
 .add-piece .level-chip { min-height: 38px; padding: 4px 12px; font-size: 0.85rem; }
-.add-piece .subdet { margin: 4px 0 16px; }
-.add-piece .subdet > summary { min-height: 44px; color: var(--muted); font-weight: 600; font-size: 0.92rem; }
-.add-piece .subdet > summary::before { content: none; }
-.add-piece .subdet[open] > summary { color: var(--text); }
-.add-piece .field-grid { margin-top: 4px; }
-.add-piece .opt { color: var(--muted); font-weight: 400; }
-.add-piece .form-actions { position: sticky; bottom: 0; z-index: 2; padding: 12px 0 calc(4px + env(safe-area-inset-bottom, 0px)); background-color: var(--bg); }
+.composer-extra { margin: 0 0 4px; }
+.composer-extra[hidden] { display: none; }
+.composer-remove { min-height: 36px; padding: 4px 14px; margin: 0 0 10px; border-radius: 999px; font-size: 0.85rem; }
+.composer-remove[hidden] { display: none; }
+/* "Add to your post" row */
+.composer-add { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin: 4px 0 12px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--r-md); }
+.composer-add-label { flex: 1 1 100%; font-size: 0.85rem; font-weight: 600; color: var(--muted); }
+.composer-btn {
+  display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 4px 12px; margin: 0;
+  border: 1px solid var(--line); border-radius: 999px; background: none; color: var(--text);
+  font: inherit; font-size: 0.88rem; font-weight: 600; cursor: pointer;
+}
+.composer-btn[aria-pressed="true"] { border-color: var(--accent); background-color: var(--tint-a, var(--bg)); }
+.add-piece .form-actions { position: sticky; bottom: 0; z-index: 2; padding: 8px 0 calc(4px + env(safe-area-inset-bottom, 0px)); background-color: var(--panel); }
+.add-piece .form-actions button[type="submit"]:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* File picker looks like a button, with a small preview */
 .thumb-input { padding: 8px; color: var(--muted); font-size: 0.9rem; cursor: pointer; }
@@ -2441,3 +2449,10 @@ body.pj-resuming #panel-projects::before { content: "Opening your projects\2026"
 .post-share .row > button { flex: 1 1 auto; min-width: 0; }
 .post-share #shareLink { margin-top: 10px; }
 .post-share #shareMsg { margin: 8px 0 0; }
+
+/* Phones: the channel is named in the title, so the dropdown pill is gone; back arrow opens the channel list */
+@media not all and (min-width: 900px) and (orientation: landscape) {
+  .chat-overlay:not(.chat-saved) > .chat-head .chat-pick-btn { display: none; }
+}
+.chat-back { position: relative; }
+.chat-back.has-unread::after { content: ""; position: absolute; top: 6px; right: 6px; width: 9px; height: 9px; border-radius: 50%; background: #e5484d; }
