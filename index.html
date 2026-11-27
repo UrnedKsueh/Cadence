@@ -78,7 +78,7 @@
     <button type="button" class="gs-row" data-gs="resources"><span>Resources</span><small>Guides, links and references</small></button>
     <button type="button" class="gs-row" data-gs="projects"><span>Projects</span><small>Your shared projects</small></button>
     <button type="button" class="gs-row" data-gs="posts"><span>Community posts</span><small>Filters the feed on Home</small></button>
-    <button type="button" class="gs-row" data-gs="people"><span>Accounts</span><small>Find a friend by handle</small></button>
+    <button type="button" class="gs-row" data-gs="people"><span>Accounts</span><small>Find a friend by handle and add them</small></button>
   </div>
 
   <div class="panel" id="panel-home" role="tabpanel" aria-labelledby="tab-home" tabindex="-1">
@@ -454,10 +454,6 @@
     </section>
     <section id="friendsSection" aria-labelledby="friendsTitle" hidden>
       <h2 id="friendsTitle">Friends</h2>
-      <form id="findForm" class="row" autocomplete="off">
-        <input id="findInput" class="field" aria-label="Find a friend by handle" placeholder="Find by handle, e.g. sam_draws" autocapitalize="off" spellcheck="false" enterkeyhint="search">
-        <button type="submit">Find</button>
-      </form>
       <div id="personBox"></div>
       <div id="reqWrap" hidden>
         <h3 class="soc-h">Requests <span id="reqCount"></span></h3>
@@ -465,7 +461,7 @@
       </div>
       <h3 class="soc-h">Your friends</h3>
       <div class="soc-list" id="friendList"></div>
-      <p class="hint" id="friendEmpty">No friends yet. Find someone by their handle or send them your invite link.</p>
+      <p class="hint" id="friendEmpty">No friends yet. Search their handle in the top bar, or send them your invite link.</p>
       <details id="blockWrap" class="soc-block" hidden><summary>Blocked (<span id="blockCount">0</span>)</summary><div class="soc-list" id="blockList"></div></details>
       <label class="soc-check"><input type="checkbox" id="friendShowToggle"> Let my friends see my Showcase</label>
       <div class="row"><button type="button" class="secondary" id="inviteBtn">Copy my invite link</button></div>

@@ -68,11 +68,7 @@
     else if (kind === "projects") { go("projects"); fill($("sharedSearch"), q); }
     else if (kind === "posts") { go("home"); filterPosts(q); var f = document.querySelector(".home-feed"); if (f) f.scrollIntoView({ behavior: "smooth", block: "start" }); }
     else if (kind === "people") {
-      go("profile");
-      var fi = $("findInput");
-      fill(fi, q);
-      var ff = $("findForm");
-      if (ff && fi && fi.offsetParent !== null) { if (ff.requestSubmit) ff.requestSubmit(); else ff.dispatchEvent(new Event("submit", { cancelable: true })); }
+      if (window.CadenceFriends && window.CadenceFriends.find) window.CadenceFriends.find(q);
     }
   });
 

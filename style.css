@@ -1125,7 +1125,6 @@ html.share-view #shareView { display: block; max-width: 720px; margin: 0 auto; p
 .soc-person .top div { min-width: 0; display: flex; flex-direction: column; }
 .soc-person small { color: var(--muted); }
 .soc-person p { margin: 0; overflow-wrap: anywhere; white-space: pre-wrap; }
-#findForm .field { flex: 1; min-width: 0; margin-bottom: 0; }
 
 .soc-check { display: flex; align-items: center; gap: 10px; margin: 16px 0 12px; min-height: 44px; }
 .soc-check input { width: 20px; height: 20px; flex: none; }

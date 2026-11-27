@@ -350,18 +350,6 @@ async function unfriend(p) {
   if (await act(function () { return deleteDoc(doc(db, "friendships", pairId(me.uid, p.uid))); })) { await refresh(); showPerson(p); }
 }
 
-async function find(raw) {
-  const h = raw.trim().replace(/^@/, "").toLowerCase();
-  if (!HANDLE_RE.test(h)) { say("friendMsg", "Handles are 3-20 letters, numbers or _."); return; }
-  try {
-    const hs = await getDoc(doc(db, "handles", h));
-    const p = hs.exists() ? await getProfile(hs.data().uid) : null;
-    if (!p) { $("personBox").textContent = ""; say("friendMsg", "No one found with @" + h + "."); return; }
-    say("friendMsg", ""); showPerson(p);
-  } catch (e) { say("friendMsg", "Couldn't search. Make sure the new Firestore rules are published."); }
-}
-$("findForm").onsubmit = function (e) { e.preventDefault(); find($("findInput").value); };
-
 $("inviteBtn").onclick = function () {
   if (!mine) { say("friendMsg", "Set up your profile first, then share your link."); return; }
   const link = location.origin + location.pathname + "?add=" + mine.handle;
@@ -371,8 +359,7 @@ $("inviteBtn").onclick = function () {
 };
 
 // ----- Profile popup (opened by tapping a name or picture in the community) -----
-async function openProfile(uid, name) {
-  if (!me) return;
+async function openSheet(load, emptyText) {
   if (closeFn) closeFn();
   const ov = mk("div", "pf-sheet");
   ov.setAttribute("role", "dialog"); ov.setAttribute("aria-modal", "true"); ov.setAttribute("aria-label", "Profile");
@@ -390,17 +377,34 @@ async function openProfile(uid, name) {
   ov.onclick = function (e) { if (e.target === ov) closeFn(); };
   document.addEventListener("keydown", esc);
   target = box; modalMsg = msg; panel.focus();
-  const p = await getProfile(uid);
+  let p = null, err = "";
+  try { p = await load(); } catch (e) { err = typeof e === "string" ? e : "Couldn't search. Make sure the new Firestore rules are published."; }
   if (!closeFn) return;
   if (p) showPerson(p);
   else {
-    box.appendChild(mk("p", "", (name || "This student") + " hasn't set up a profile yet."));
+    box.appendChild(mk("p", "", err || emptyText));
     const b = mk("button", "secondary", "Close"); b.type = "button"; b.onclick = closeFn; box.appendChild(b);
   }
 }
+async function openProfile(uid, name) {
+  if (!me) return;
+  return openSheet(function () { return getProfile(uid); }, (name || "This student") + " hasn't set up a profile yet.");
+}
+// Used by the top search bar: look someone up by handle and show their card with Add friend
+async function openByHandle(raw) {
+  if (!me) return;
+  const h = String(raw || "").trim().replace(/^@/, "").toLowerCase();
+  return openSheet(async function () {
+    if (!HANDLE_RE.test(h)) throw "Handles are 3-20 letters, numbers or _.";
+    const hs = await getDoc(doc(db, "handles", h));
+    const p = hs.exists() ? await getProfile(hs.data().uid) : null;
+    if (!p) throw "No one found with @" + h + ".";
+    return p;
+  }, "");
+}
 window.CadenceProfile = { open: openProfile };
-// Lets shared projects offer your friends as people to add (read-only copy)
-window.CadenceFriends = { list: function () { return friends.slice(); } };
+// Friends list (read-only copy) for shared projects, and handle lookup for the top search
+window.CadenceFriends = { list: function () { return friends.slice(); }, find: openByHandle };
 
 // ----- Sign-in wiring -----
 function badge() {
@@ -425,6 +429,6 @@ onAuthStateChanged(auth, async function (user) {
   await refresh();
   if (pendingAdd) {
     const h = pendingAdd; pendingAdd = "";
-    $("avatarBtn").click(); $("findInput").value = h; find(h);
+    openByHandle(h);
   } else if (!mine) { say("friendMsg", "Tip: tap Set up profile to pick a nickname and handle."); }
 });
