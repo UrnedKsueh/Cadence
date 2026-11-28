@@ -9,6 +9,7 @@ import { COLORS, getProfile, setCached, avatarEl, paintAva } from "./avatars.js"
 const db = getFirestore(getApp());
 const auth = getAuth(getApp());
 const $ = function (id) { return document.getElementById(id); };
+const Icons = window.CadenceIcons;
 const HANDLE_RE = /^[a-z0-9_]{3,20}$/;
 let me = null, mine = null, color = COLORS[0], unsub = null, photoData = "";
 let incoming = [], outgoing = [], friends = [], blocked = [];
@@ -352,12 +353,22 @@ function showPerson(p) {
   const rel = relation(p.uid), inner = rel === "friends" || rel === "self";
   const card = mk("div", "soc-person dc-card");
   const bn = mk("div", "dc-banner"); paintBanner(bn, p);
-  const x = mk("button", "dc-x", "\u2715"); x.type = "button"; x.setAttribute("aria-label", "Close"); x.onclick = closePerson;
+  const x = mk("button", "dc-x"); x.type = "button"; x.setAttribute("aria-label", "Close"); x.onclick = closePerson;
+  x.appendChild(Icons.svg("x"));
   bn.appendChild(x);
   const ava = mk("div", "dc-ava"); ava.appendChild(avatar(p, true));
   card.append(bn, ava);
   const body = mk("div", "dc-body");
-  body.appendChild(mk("strong", "dc-name", nameOf(p)));
+  const nameRow = mk("div", "dc-namerow");
+  nameRow.appendChild(mk("strong", "dc-name", nameOf(p)));
+  const badges = { friends: ["userCheck", "Friends", "is-friend"], incoming: ["userPlus", "Wants to be friends", "is-pending"], outgoing: ["clock", "Request sent", "is-pending"] };
+  if (badges[rel]) {
+    const bd = mk("span", "dc-badge " + badges[rel][2]);
+    bd.appendChild(Icons.svg(badges[rel][0]));
+    bd.appendChild(mk("span", "", badges[rel][1]));
+    nameRow.appendChild(bd);
+  }
+  body.appendChild(nameRow);
   const sub = mk("div", "dc-sub", p.handle ? "@" + p.handle : "");
   body.appendChild(sub);
   if (rel !== "self") {
@@ -384,7 +395,9 @@ function showPerson(p) {
     form = mk("form", "dc-msg"); form.autocomplete = "off";
     const input = mk("input", "field"); input.type = "text"; input.maxLength = 2000;
     input.placeholder = "Message @" + nameOf(p); input.setAttribute("aria-label", "Message " + nameOf(p));
-    form.appendChild(input);
+    const lead = mk("span", "dc-msg-ico"); lead.appendChild(Icons.svg("message"));
+    const go = mk("button", "dc-send"); go.type = "submit"; go.setAttribute("aria-label", "Send message"); go.appendChild(Icons.svg("send"));
+    form.append(lead, input, go);
     form.onsubmit = function (e) {
       e.preventDefault();
       const t = input.value.trim();
@@ -394,15 +407,15 @@ function showPerson(p) {
     body.appendChild(form);
   }
   const row = mk("div", "row dc-acts");
-  const btn = function (label, run, sec) { const b = mk("button", sec ? "secondary" : "", label); b.type = "button"; b.onclick = run; row.appendChild(b); return b; };
-  if (rel === "none") btn("Add friend", function () { addFriend(p); });
-  else if (rel === "incoming") btn("Accept request", function () { accept(p.uid); });
-  else if (rel === "outgoing") btn("Request sent. Cancel?", function () { dropRequest(me.uid + "_" + p.uid); }, true);
+  const btn = function (label, run, sec, icon) { const b = mk("button", sec ? "secondary" : "", label); b.type = "button"; b.onclick = run; if (icon) Icons.label(b, icon, label); row.appendChild(b); return b; };
+  if (rel === "none") btn("Add friend", function () { addFriend(p); }, false, "userPlus");
+  else if (rel === "incoming") btn("Accept request", function () { accept(p.uid); }, false, "check");
+  else if (rel === "outgoing") btn("Request sent. Cancel?", function () { dropRequest(me.uid + "_" + p.uid); }, true, "clock");
   else if (rel === "friends") {
-    btn("View Showcase", function () { viewShowcase(p, card); }, true);
-    btn("Remove", function () { unfriend(p); }, true);
+    btn("View Showcase", function () { viewShowcase(p, card); }, true, "image");
+    btn("Remove", function () { unfriend(p); }, true, "userMinus");
   }
-  else if (rel === "self") btn("Edit Profile", function () { closePerson(); const b = $("profEditBtn"); if (b) b.click(); });
+  else if (rel === "self") btn("Edit Profile", function () { closePerson(); const b = $("profEditBtn"); if (b) b.click(); }, false, "pencil");
   body.appendChild(row);
   card.appendChild(body); box.appendChild(card);
   box.scrollIntoView({ block: "nearest", behavior: "smooth" });

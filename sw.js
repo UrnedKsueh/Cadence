@@ -1,4 +1,4 @@
-const VERSION = "cadence-v2";
+const VERSION = "cadence-v4";
 const SHELL = [
   "./",
   "index.html",
@@ -16,6 +16,7 @@ const SHELL = [
   "tags/tag5.png",
   "theme.js",
   "shareview.js",
+  "icons.js",
   "gate.js",
   "storage.js",
   "script.js",
