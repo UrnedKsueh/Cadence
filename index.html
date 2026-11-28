@@ -420,38 +420,77 @@
 
   <div class="panel" id="panel-profile" role="tabpanel" aria-label="Profile" tabindex="-1" hidden>
     <div class="menu-back-row"><button type="button" class="tool-back secondary" data-goto="home"><svg viewBox="0 0 24 24" aria-hidden="true" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg><span>Back</span></button></div>
-    <section class="profile-card" aria-label="Account">
-      <span class="avatar lg" id="profileAvatar"></span>
+    <section class="profile-card pc" aria-label="Account">
+      <div class="pc-banner" id="pcBanner" aria-hidden="true"></div>
+      <span class="avatar lg pc-ava" id="profileAvatar"></span>
       <div class="who">
         <strong id="profileName">Guest</strong>
         <small id="profileHandle" hidden></small>
         <small id="profileEmail">Not signed in</small>
         <p class="hint soc-bio" id="profileBio" hidden></p>
       </div>
-      <button type="button" class="secondary" id="profEditBtn" hidden>Edit</button>
+      <button type="button" class="pc-edit" id="profEditBtn" hidden>Edit profile</button>
     </section>
     <section id="socialSection" aria-labelledby="socialTitle" hidden>
       <form id="profForm" class="soc-form" autocomplete="off" hidden>
-        <h2 id="socialTitle">Edit profile</h2>
-        <div class="pf-photo">
-          <span id="pfPhoto" class="pf-ava lg" aria-hidden="true"></span>
-          <div class="row"><button type="button" class="secondary" id="pfPick">Add photo</button><button type="button" class="secondary" id="pfUnpick" hidden>Remove</button></div>
-          <input type="file" id="pfFile" accept="image/jpeg,image/png,image/webp" hidden>
+        <header class="cmp-top">
+          <button type="button" class="cmp-icon" id="pfClose" aria-label="Close">✕</button>
+          <strong id="socialTitle">Edit profile</strong>
+          <span class="cmp-top-gap"></span>
+        </header>
+        <div class="cmp-body">
+          <div class="pf-banner" id="pfBanner" aria-hidden="true"></div>
+          <div class="row pf-banner-row">
+            <button type="button" class="secondary" id="pfBannerPick">Banner image</button>
+            <button type="button" class="secondary" id="pfBannerClear" hidden>Remove</button>
+            <input type="file" id="pfBannerFile" accept="image/jpeg,image/png,image/webp" hidden>
+          </div>
+          <div class="pf-photo">
+            <span id="pfPhoto" class="pf-ava lg" aria-hidden="true"></span>
+            <div class="row"><button type="button" class="secondary" id="pfPick">Add photo</button><button type="button" class="secondary" id="pfUnpick" hidden>Remove</button></div>
+            <input type="file" id="pfFile" accept="image/jpeg,image/png,image/webp" hidden>
+          </div>
+          <label for="pfNick">Nickname</label>
+          <input id="pfNick" class="field" maxlength="30" required placeholder="What friends see">
+          <label for="pfHandle">Handle</label>
+          <input id="pfHandle" class="field" maxlength="20" required autocapitalize="off" spellcheck="false" placeholder="letters, numbers, _ (3-20)">
+          <label for="pfCourse">Course (optional)</label>
+          <input id="pfCourse" class="field" list="courses" maxlength="60">
+          <label for="pfBio">Bio</label>
+          <textarea id="pfBio" class="field" rows="3" maxlength="160" placeholder="A line about you"></textarea>
+          <label>Avatar colour</label>
+          <div class="soc-colors" id="pfColors" role="group" aria-label="Avatar colour"></div>
+          <label>Profile theme</label>
+          <div class="soc-colors" id="pfThemes" role="group" aria-label="Profile theme colour"></div>
+          <label for="pfLink1">Links (up to 3)</label>
+          <input id="pfLink1" class="field" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="YouTube, portfolio, Instagram">
+          <input id="pfLink2" class="field" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="Another link">
+          <input id="pfLink3" class="field" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="Another link">
+          <label class="soc-check"><input type="checkbox" id="friendShowToggle"> Let my friends see my Showcase</label>
+          <p class="hint">The Showcase option applies right away. Banner, theme and links are saved with your profile.</p>
+          <p class="hint" id="pfMsg" aria-live="polite"></p>
         </div>
-        <label for="pfNick">Nickname</label>
-        <input id="pfNick" class="field" maxlength="30" required placeholder="What friends see">
-        <label for="pfHandle">Handle</label>
-        <input id="pfHandle" class="field" maxlength="20" required autocapitalize="off" spellcheck="false" placeholder="letters, numbers, _ (3-20)">
-        <label for="pfCourse">Course (optional)</label>
-        <input id="pfCourse" class="field" list="courses" maxlength="60">
-        <label for="pfBio">Bio</label>
-        <textarea id="pfBio" class="field" rows="3" maxlength="160" placeholder="A line about you"></textarea>
-        <label>Avatar colour</label>
-        <div class="soc-colors" id="pfColors" role="group" aria-label="Avatar colour"></div>
-        <p class="hint" id="pfMsg" aria-live="polite"></p>
-        <div class="row"><button type="submit">Save</button><button type="button" class="secondary" id="pfCancel">Cancel</button></div>
+        <div class="cmp-bar">
+          <button type="button" class="secondary" id="pfCancel">Cancel</button>
+          <button type="submit" class="cmp-post">Save</button>
+        </div>
       </form>
     </section>
+    <div class="pc-tabs" role="tablist" aria-label="Profile sections">
+      <button type="button" role="tab" id="pcTabMain" data-pc="main" aria-selected="true">Main</button>
+      <button type="button" role="tab" id="pcTabShow" data-pc="showcase" aria-selected="false">Showcase</button>
+    </div>
+    <div id="pcMain">
+    <section id="pcFeatured" class="pc-block" aria-labelledby="pcFeatTitle" hidden>
+      <h2 id="pcFeatTitle">Featured</h2>
+      <div class="pc-strip" id="pcFeatList"></div>
+    </section>
+    <button type="button" class="pc-row" id="pcFriendsRow" aria-expanded="false">
+      <span class="pc-row-label">Friends</span>
+      <span class="pc-avas" id="pcFriendAvas"></span>
+      <span class="pc-row-count" id="pcFriendsCount">No friends yet</span>
+      <span class="pc-chev" aria-hidden="true">›</span>
+    </button>
     <section id="friendsSection" aria-labelledby="friendsTitle" hidden>
       <h2 id="friendsTitle">Friends</h2>
       <div id="personBox"></div>
@@ -459,89 +498,18 @@
         <h3 class="soc-h">Requests <span id="reqCount"></span></h3>
         <div class="soc-list" id="reqList"></div>
       </div>
-      <h3 class="soc-h">Your friends</h3>
+      <h3 class="soc-h" id="friendsH">Your friends</h3>
       <div class="soc-list" id="friendList"></div>
       <p class="hint" id="friendEmpty">No friends yet. Search their handle in the top bar, or send them your invite link.</p>
       <details id="blockWrap" class="soc-block" hidden><summary>Blocked (<span id="blockCount">0</span>)</summary><div class="soc-list" id="blockList"></div></details>
-      <label class="soc-check"><input type="checkbox" id="friendShowToggle"> Let my friends see my Showcase</label>
-      <div class="row"><button type="button" class="secondary" id="inviteBtn">Copy my invite link</button></div>
+      <div class="row" id="inviteRow"><button type="button" class="secondary" id="inviteBtn">Copy my invite link</button></div>
       <p class="hint" id="friendMsg" aria-live="polite"></p>
     </section>
     <p class="hint" id="socialSignedOut">Sign in to set up your profile and add friends.</p>
-  <div id="showcaseWrap">
-  <section id="showcaseSection" class="post showcase-post" aria-labelledby="showcaseTitle">
-    <div class="post-head has-ava">
-      <span class="avatar post-ava" id="showPostAvatar" aria-hidden="true"></span>
-      <div class="post-who">
-        <strong id="showPostName">You</strong>
-        <small class="hint" id="showcaseTitle">Showcase · your finished work</small>
-      </div>
-    </div>
-    <details class="shots add-piece" id="showAdd">
-      <summary>What did you finish?</summary>
-      <form id="showForm" autocomplete="off">
-        <input id="showTitle" class="field composer-title" required maxlength="120" placeholder="Title of your work" aria-label="Title" enterkeyhint="next">
-        <textarea id="showNote" class="field composer-text" rows="3" maxlength="400" placeholder="Say something about it (optional)" aria-label="Say something about it"></textarea>
-        <input id="showUrl" class="field" type="text" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="Video link: YouTube, Vimeo or Drive (optional)" aria-label="Video link" enterkeyhint="done">
-        <img id="showThumbPreview" class="thumb-preview" alt="Photo preview" hidden>
-        <button type="button" class="secondary composer-remove" id="showThumbClear" hidden>Remove photo</button>
-        <div class="composer-extra" id="extraCourse" hidden>
-          <label for="showCourse">Course</label>
-          <input id="showCourse" class="field" list="courses">
-        </div>
-        <div class="composer-extra" id="extraTools" hidden>
-          <label for="showTools">Tools</label>
-          <input id="showTools" class="field" placeholder="Blender, After Effects">
-          <div class="levelbar tool-bar" id="showToolBar" role="group" aria-label="Pick tools"></div>
-        </div>
-        <div class="composer-extra" id="extraRole" hidden>
-          <label for="showRole">Your role</label>
-          <input id="showRole" class="field" placeholder="Animator, layout, compositing">
-        </div>
-        <input id="showThumb" class="thumb-input" type="file" accept="image/*" hidden>
-        <input id="showLevel" type="hidden" value="">
-        <input id="showYear" type="hidden" value="">
-        <div class="composer-add" role="group" aria-label="Add to your post">
-          <span class="composer-add-label">Add to your post</span>
-          <label class="composer-btn" for="showThumb" title="Add a photo">🖼️<span>Photo</span></label>
-          <button type="button" class="composer-btn" data-extra="extraCourse" aria-pressed="false">🎓<span>Course</span></button>
-          <button type="button" class="composer-btn" data-extra="extraTools" aria-pressed="false">🛠️<span>Tools</span></button>
-          <button type="button" class="composer-btn" data-extra="extraRole" aria-pressed="false">👤<span>Role</span></button>
-        </div>
-        <div class="form-actions">
-          <button type="submit" id="showPost" disabled>Post</button>
-          <button type="button" class="secondary" id="showCancel">Cancel</button>
-        </div>
-      </form>
-    </details>
-    <p class="hint show-msg" id="showMsg" role="status" aria-live="polite" hidden></p>
-    <div id="showFilters" hidden>
-      <div class="levelbar" id="levelBar" role="group" aria-label="Filter by year level"></div>
-      <div class="show-filter-row">
-        <select id="showFilter" class="field" aria-label="Filter by tool"></select>
-        <button type="button" id="presentBtn" class="secondary">Present mode</button>
-      </div>
-    </div>
-    <ul id="showList"></ul>
-    <div class="empty show-empty" id="showEmpty" hidden>
-      <p id="showEmptyText">Nothing here yet.</p>
-      <button type="button" class="secondary" id="showClear" hidden>Clear filters</button>
-    </div>
-    <details id="shareSection" class="post-share" hidden>
-      <summary>Share your showcase</summary>
-      <p class="hint">Make a link anyone can open without signing in. It shows your pieces only (title, course, year, role, tools, note and video link). Thumbnails and your email are never included. You can stop sharing any time.</p>
-      <label for="shareName">Name on your posts and share page (optional)</label>
-      <input id="shareName" class="field" maxlength="40" placeholder="e.g. Alex">
-      <div class="row">
-        <button type="button" id="sharePublish">Create share link</button>
-        <button type="button" class="secondary" id="shareCopy" hidden>Copy link</button>
-        <button type="button" class="secondary" id="shareStop" hidden>Stop sharing</button>
-      </div>
-      <input id="shareLink" class="field" readonly hidden aria-label="Your share link">
-      <p class="hint" id="shareMsg" aria-live="polite"></p>
-    </details>
-  </section>
-  </div>
+    <section id="pcLinks" class="pc-block" aria-labelledby="pcLinksTitle" hidden>
+      <h2 id="pcLinksTitle">Links</h2>
+      <ul class="pc-links" id="pcLinkList"></ul>
+    </section>
   <div class="admin-zone">
   <p class="admin-zone-label">Admin tools</p>
   <section id="adminSection" aria-labelledby="adminTitle" hidden>
@@ -576,6 +544,91 @@
       <button type="submit" id="resSubmit">Add resource</button>
     </form>
     <p class="hint" id="resAdminMsg" aria-live="polite"></p>
+    </details>
+  </section>
+  </div>
+    </div>
+  <div id="showcaseWrap" hidden>
+  <section id="showcaseSection" class="post showcase-post" aria-labelledby="showcaseTitle">
+    <div class="post-head has-ava">
+      <span class="avatar post-ava" id="showPostAvatar" aria-hidden="true"></span>
+      <div class="post-who">
+        <strong id="showPostName">You</strong>
+        <small class="hint" id="showcaseTitle">Showcase · your finished work</small>
+      </div>
+    </div>
+    <details class="shots add-piece" id="showAdd">
+      <summary>What did you finish?</summary>
+      <form id="showForm" autocomplete="off">
+        <header class="cmp-top">
+          <button type="button" class="cmp-icon" id="showCancel" aria-label="Close">✕</button>
+          <strong>New post</strong>
+          <span class="cmp-top-gap"></span>
+        </header>
+        <div class="cmp-body">
+          <div class="cmp-who">
+            <span class="avatar post-ava" id="cmpAvatar" aria-hidden="true"></span>
+            <div class="cmp-who-text">
+              <strong id="cmpName">You</strong>
+              <small id="cmpSummary" class="hint"></small>
+            </div>
+          </div>
+          <div class="cmp-chips" role="group" aria-label="Add to your post">
+            <button type="button" class="cmp-chip" id="chipCourse">🎓 <span>Course</span></button>
+            <button type="button" class="cmp-chip" id="chipTools">🛠️ <span>Tools</span></button>
+            <button type="button" class="cmp-chip" id="chipRole">👤 <span>Role</span></button>
+          </div>
+          <textarea id="showText" class="cmp-text" rows="6" maxlength="520" placeholder="What did you finish? The first line is your title." aria-label="Post text"></textarea>
+          <div class="cmp-linkrow" id="cmpLinkRow" hidden>
+            <input id="showUrl" class="field" type="text" inputmode="url" autocapitalize="off" spellcheck="false" placeholder="Paste a YouTube, Vimeo or Drive link" aria-label="Video link" enterkeyhint="done">
+          </div>
+          <img id="showThumbPreview" class="thumb-preview" alt="Photo preview" hidden>
+          <button type="button" class="secondary composer-remove" id="showThumbClear" hidden>Remove photo</button>
+          <input id="showThumb" type="file" accept="image/*" hidden>
+          <input id="showLevel" type="hidden" value="">
+          <input id="showYear" type="hidden" value="">
+        </div>
+        <div class="cmp-bar">
+          <label class="cmp-icon" for="showThumb" title="Add a photo" aria-label="Add a photo">🖼️</label>
+          <button type="button" class="cmp-icon" id="cmpLinkBtn" title="Add a video link" aria-label="Add a video link">🎬</button>
+          <button type="submit" id="showPost" class="cmp-post" disabled>Post</button>
+        </div>
+        <div class="cmp-picker" id="cmpPicker" hidden>
+          <header class="cmp-top">
+            <button type="button" class="cmp-icon" id="cmpPickBack" aria-label="Back">‹</button>
+            <strong id="cmpPickTitle"></strong>
+            <button type="button" class="cmp-clear" id="cmpPickClear">Clear</button>
+          </header>
+          <input id="cmpPickSearch" class="field cmp-search" type="search" placeholder="Search" aria-label="Search">
+          <div class="cmp-list" id="cmpPickList" role="listbox"></div>
+        </div>
+      </form>
+    </details>
+    <p class="hint show-msg" id="showMsg" role="status" aria-live="polite" hidden></p>
+    <div id="showFilters" hidden>
+      <div class="levelbar" id="levelBar" role="group" aria-label="Filter by year level"></div>
+      <div class="show-filter-row">
+        <select id="showFilter" class="field" aria-label="Filter by tool"></select>
+        <button type="button" id="presentBtn" class="secondary">Present mode</button>
+      </div>
+    </div>
+    <ul id="showList"></ul>
+    <div class="empty show-empty" id="showEmpty" hidden>
+      <p id="showEmptyText">Nothing here yet.</p>
+      <button type="button" class="secondary" id="showClear" hidden>Clear filters</button>
+    </div>
+    <details id="shareSection" class="post-share" hidden>
+      <summary>Share your showcase</summary>
+      <p class="hint">Make a link anyone can open without signing in. It shows your pieces only (title, course, year, role, tools, note and video link). Thumbnails and your email are never included. You can stop sharing any time.</p>
+      <label for="shareName">Name on your posts and share page (optional)</label>
+      <input id="shareName" class="field" maxlength="40" placeholder="e.g. Alex">
+      <div class="row">
+        <button type="button" id="sharePublish">Create share link</button>
+        <button type="button" class="secondary" id="shareCopy" hidden>Copy link</button>
+        <button type="button" class="secondary" id="shareStop" hidden>Stop sharing</button>
+      </div>
+      <input id="shareLink" class="field" readonly hidden aria-label="Your share link">
+      <p class="hint" id="shareMsg" aria-live="polite"></p>
     </details>
   </section>
   </div>
@@ -653,6 +706,7 @@
 <script src="script.js"></script>
 <script src="tabs.js"></script>
 <script src="tools.js"></script>
+<script src="profilecard.js"></script>
 <script src="search.js"></script>
 <script type="module" src="cloud.js"></script>
 <script type="module" src="share.js"></script>

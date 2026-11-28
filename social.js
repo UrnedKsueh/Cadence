@@ -42,7 +42,11 @@ function relation(uid) {
 }
 
 // ----- My profile -----
+// Banner is a small JPEG stored as text, same idea as the avatar photo. Nothing else is allowed in a CSS url().
+function okBanner(b) { return typeof b === "string" && b.length <= 95000 && /^data:image\/jpeg;base64,[A-Za-z0-9+\/=]+$/.test(b); }
+
 function paintMine() {
+  if (window.PC) window.PC.apply(mine);
   const has = !!mine;
   $("profEditBtn").hidden = !me;
   $("profEditBtn").textContent = has ? "Edit" : "Set up profile";
@@ -63,6 +67,7 @@ function openForm(open) {
   $("pfNick").value = base.nickname; $("pfHandle").value = base.handle;
   $("pfBio").value = base.bio || ""; $("pfCourse").value = base.course || "";
   color = base.color || COLORS[0]; photoData = base.photo || ""; paintColors(); say("pfMsg", "");
+  if (window.PC) window.PC.fill();
   $("pfNick").focus();
 }
 
@@ -131,8 +136,9 @@ $("profForm").onsubmit = async function (e) {
       const taken = await getDoc(doc(db, "handles", handle));
       if (taken.exists() && taken.data().uid !== me.uid) { say("pfMsg", "That handle is taken."); return; }
     }
-    const p = { uid: me.uid, nickname: nick.slice(0, 30), handle: handle, color: color, photo: photoData, updatedAt: Date.now() };
-    const det = { bio: $("pfBio").value.trim().slice(0, 160), course: $("pfCourse").value.trim().slice(0, 60) };
+    const x = window.PC ? window.PC.collect() : { banner: "", theme: "", links: [] };
+    const p = { uid: me.uid, nickname: nick.slice(0, 30), handle: handle, color: color, photo: photoData, banner: x.banner, theme: x.theme, updatedAt: Date.now() };
+    const det = { bio: $("pfBio").value.trim().slice(0, 160), course: $("pfCourse").value.trim().slice(0, 60), links: x.links };
     const batch = writeBatch(db);
     batch.set(doc(db, "profiles", me.uid), p);
     batch.set(doc(db, "profileDetails", me.uid), det);
@@ -220,6 +226,7 @@ function showPerson(p) {
   const box = target; box.textContent = "";
   if (!p) return;
   const card = mk("div", "soc-person");
+  if (okBanner(p.banner)) { const bn = mk("div", "soc-banner"); bn.style.backgroundImage = 'url("' + p.banner + '")'; card.appendChild(bn); }
   const top = mk("div", "top"); top.appendChild(avatar(p, true));
   const t = mk("div"); t.appendChild(mk("strong", "", nameOf(p)));
   const sub = mk("small", "", "@" + p.handle);
@@ -228,7 +235,16 @@ function showPerson(p) {
   const rel = relation(p.uid);
   if (rel === "friends" || rel === "self") {
     const bio = mk("p"); card.appendChild(bio);
-    getDetails(p.uid).then(function (d) { if (d.course) sub.textContent += " \u00b7 " + d.course; bio.textContent = d.bio || ""; });
+    getDetails(p.uid).then(function (d) {
+      if (d.course) sub.textContent += " \u00b7 " + d.course; bio.textContent = d.bio || "";
+      (Array.isArray(d.links) ? d.links.slice(0, 3) : []).forEach(function (u) {
+        const safe = typeof safeUrl === "function" ? safeUrl(u) : "";
+        if (!safe) return;
+        const a = mk("a", "soc-link", safe.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""));
+        a.href = safe; a.target = "_blank"; a.rel = "noopener noreferrer";
+        bio.insertAdjacentElement("afterend", a);
+      });
+    });
   } else card.appendChild(mk("small", "", "Bio and course are only visible to friends."));
   const row = mk("div", "row");
   const btn = function (label, run, sec) { const b = mk("button", sec ? "secondary" : "", label); b.type = "button"; b.onclick = run; row.appendChild(b); return b; };
@@ -413,6 +429,7 @@ function badge() {
 }
 onAuthStateChanged(auth, async function (user) {
   me = user; if (unsub) { unsub(); unsub = null; }
+  if (window.PC) window.PC.apply(null);
   mine = null; incoming = []; outgoing = []; friends = []; blocked = []; badge();
   $("socialSection").hidden = !user; $("friendsSection").hidden = !user; $("socialSignedOut").hidden = !!user;
   $("profEditBtn").hidden = !user; $("profileHandle").hidden = true; $("profileBio").hidden = true;

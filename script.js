@@ -1489,6 +1489,7 @@ function cleanShow(s) {
     tools: raw.map(function (t) { return String(t).trim().slice(0, 30); }).filter(Boolean).slice(0, 8),
     role: text(s.role, 60),
     note: text(s.note, 400),
+    pinned: s.pinned === true,
     thumb: typeof s.thumb === "string" && s.thumb.length < 60000 &&
       /^data:image\/jpeg;base64,[A-Za-z0-9+\/=]+$/.test(s.thumb) ? s.thumb : ""
   };
@@ -1591,6 +1592,16 @@ function showCard(s, big) {
       feedBtn.onclick = function () { if (isPosted) window.CadenceFeed.unpost(s.id); else window.CadenceFeed.post(s); };
       actions.appendChild(feedBtn);
     }
+    const pinBtn = el("button", "secondary", s.pinned ? "Unpin" : "📌 Pin");
+    pinBtn.type = "button";
+    pinBtn.setAttribute("aria-label", (s.pinned ? "Unpin \"" : "Feature \"") + s.title + "\" on your profile");
+    pinBtn.onclick = function () {
+      if (!s.pinned && showcase.filter(function (x) { return x.pinned; }).length >= 3) { alert("You can feature up to 3 pieces. Unpin one first."); return; }
+      s.pinned = !s.pinned;
+      store(KEYS.showcase, showcase);
+      renderAll();
+    };
+    actions.appendChild(pinBtn);
     actions.appendChild(editButton(s.title, s.id));
     const del = el("button", "remove", "✕");
     del.type = "button";
@@ -1657,7 +1668,8 @@ function renderShowcase() {
   // Filters only appear once there is something to filter
   $("showFilters").hidden = showcase.length === 0;
   renderLevelBar();
-  renderToolChips();
+  refreshComposer();
+  if (window.pcFeatured) window.pcFeatured();
 
   const list = $("showList");
   list.innerHTML = "";
@@ -1688,7 +1700,7 @@ function renderShowcase() {
         { key: "note", label: "What you learned / feedback" }
       ], function (v) {
         const fixed = cleanShow({ id: s.id, title: v.title, url: v.url, course: v.course, year: v.year, level: v.level,
-          tools: v.tools, role: v.role, note: v.note, thumb: s.thumb });
+          tools: v.tools, role: v.role, note: v.note, thumb: s.thumb, pinned: s.pinned });
         if (fixed) {
           Object.keys(fixed).forEach(function (k) { s[k] = fixed[k]; });
           store(KEYS.showcase, showcase);
@@ -1734,69 +1746,136 @@ function showMessage(text) {
   if (text) showMsgTimer = setTimeout(function () { showMessage(""); }, 6000);
 }
 
-function toolsInInput() {
-  return $("showTools").value.split(",").map(function (t) { return t.trim(); }).filter(Boolean);
+// ----- Composer (full-screen, like a social post box) -----
+const ROLES = ["Animator", "Storyboard artist", "Character designer", "Background artist", "Layout", "Compositor", "Editor", "Sound design", "Director", "Writer"];
+const cmp = { course: "", tools: [], role: "" };
+let picker = null;
+
+function dedupeSorted(list) {
+  const seen = {}, out = [];
+  list.forEach(function (t) { const k = t.toLowerCase(); if (!seen[k]) { seen[k] = 1; out.push(t); } });
+  return out.sort(function (a, b) { return a.localeCompare(b); });
+}
+function toolChoices() {
+  const used = [];
+  showcase.forEach(function (x) { x.tools.forEach(function (t) { used.push(t); }); });
+  return dedupeSorted(used.concat(COMMON_TOOLS, cmp.tools));
+}
+function courseChoices() {
+  const extra = [];
+  deadlines.concat(projects, showcase).forEach(function (it) {
+    if (it.course && PRESET_COURSES.indexOf(it.course) < 0) extra.push(it.course);
+  });
+  return PRESET_COURSES.concat(dedupeSorted(extra));
+}
+function roleChoices() {
+  const used = showcase.map(function (x) { return x.role; }).filter(Boolean);
+  return dedupeSorted(ROLES.concat(used, cmp.role ? [cmp.role] : []));
 }
 
-// Tap-to-add chips for tools: ones already used in the Showcase first, then common ones
-function renderToolChips() {
-  const bar = $("showToolBar");
-  const names = [];
-  showcase.forEach(function (s) {
-    s.tools.forEach(function (t) {
-      if (!names.some(function (n) { return n.toLowerCase() === t.toLowerCase(); })) names.push(t);
-    });
-  });
-  names.sort(function (a, b) { return a.localeCompare(b); });
-  COMMON_TOOLS.forEach(function (t) {
-    if (!names.some(function (n) { return n.toLowerCase() === t.toLowerCase(); })) names.push(t);
-  });
-  const current = toolsInInput().map(function (t) { return t.toLowerCase(); });
-  bar.innerHTML = "";
-  names.forEach(function (name) {
-    const on = current.indexOf(name.toLowerCase()) >= 0;
-    const b = el("button", "level-chip course-chip" + (on ? " on" : ""), name);
-    b.type = "button";
-    b.setAttribute("aria-pressed", on ? "true" : "false");
-    b.onclick = function () {
-      const list = toolsInInput();
-      const i = list.findIndex(function (t) { return t.toLowerCase() === name.toLowerCase(); });
-      if (i >= 0) list.splice(i, 1); else list.push(name);
-      $("showTools").value = list.join(", ");
-      renderToolChips();
-    };
-    bar.appendChild(b);
-  });
+// Header summary and chips mirror whatever has been picked
+function refreshComposer() {
+  const parts = [];
+  if (cmp.course) parts.push(cmp.course.split(" \u2013 ")[0]);
+  if (cmp.tools.length) parts.push(cmp.tools.join(", "));
+  if (cmp.role) parts.push(cmp.role);
+  $("cmpSummary").textContent = parts.join(" \u00b7 ");
+  $("cmpSummary").hidden = parts.length === 0;
+  const set = function (id, value, fallback) {
+    const chip = $(id);
+    chip.querySelector("span").textContent = value || fallback;
+    chip.classList.toggle("on", !!value);
+  };
+  set("chipCourse", cmp.course ? cmp.course.split(" \u2013 ")[0] : "", "Course");
+  set("chipTools", cmp.tools.length ? cmp.tools.length + (cmp.tools.length === 1 ? " tool" : " tools") : "", "Tools");
+  set("chipRole", cmp.role, "Role");
+  $("showPost").disabled = !$("showText").value.trim();
 }
-$("showTools").addEventListener("input", renderToolChips);
+
+function openPicker(cfg) {
+  picker = cfg;
+  $("cmpPickTitle").textContent = cfg.title;
+  $("cmpPickSearch").value = "";
+  $("cmpPicker").hidden = false;
+  renderPicker();
+}
+function closePicker() {
+  picker = null;
+  $("cmpPicker").hidden = true;
+  refreshComposer();
+}
+function renderPicker() {
+  if (!picker) return;
+  const q = $("cmpPickSearch").value.trim();
+  const low = q.toLowerCase();
+  const list = $("cmpPickList");
+  list.innerHTML = "";
+  const addRow = function (label, custom) {
+    const on = picker.isOn(label);
+    const row = el("button", "cmp-row" + (on ? " on" : ""));
+    row.type = "button";
+    row.setAttribute("role", "option");
+    row.setAttribute("aria-selected", on ? "true" : "false");
+    row.appendChild(el("span", "cmp-row-label", custom ? "Add \u201c" + label + "\u201d" : label));
+    row.appendChild(el("span", picker.multi ? "cmp-check" : "cmp-radio", on ? "\u2713" : ""));
+    row.onclick = function () {
+      picker.toggle(label);
+      if (picker.multi) renderPicker(); else closePicker();
+    };
+    list.appendChild(row);
+  };
+  const items = picker.items().filter(function (x) { return !low || x.toLowerCase().indexOf(low) >= 0; });
+  items.forEach(function (x) { addRow(x, false); });
+  if (q && !items.some(function (x) { return x.toLowerCase() === low; })) addRow(q.slice(0, picker.max || 60), true);
+  if (!items.length && !q) list.appendChild(el("p", "hint", "Nothing here yet."));
+}
+$("cmpPickSearch").addEventListener("input", renderPicker);
+$("cmpPickBack").onclick = closePicker;
+$("cmpPickClear").onclick = function () { if (picker) { picker.clear(); renderPicker(); if (!picker.multi) closePicker(); } };
+
+$("chipCourse").onclick = function () {
+  openPicker({
+    title: "Course", multi: false, max: 60, items: courseChoices,
+    isOn: function (v) { return cmp.course === v; },
+    toggle: function (v) { cmp.course = cmp.course === v ? "" : v; },
+    clear: function () { cmp.course = ""; }
+  });
+};
+$("chipTools").onclick = function () {
+  openPicker({
+    title: "Tools you used", multi: true, max: 30, items: toolChoices,
+    isOn: function (v) { return cmp.tools.some(function (t) { return t.toLowerCase() === v.toLowerCase(); }); },
+    toggle: function (v) {
+      const i = cmp.tools.findIndex(function (t) { return t.toLowerCase() === v.toLowerCase(); });
+      if (i >= 0) cmp.tools.splice(i, 1); else if (cmp.tools.length < 8) cmp.tools.push(v);
+    },
+    clear: function () { cmp.tools = []; }
+  });
+};
+$("chipRole").onclick = function () {
+  openPicker({
+    title: "Your role", multi: false, max: 60, items: roleChoices,
+    isOn: function (v) { return cmp.role === v; },
+    toggle: function (v) { cmp.role = cmp.role === v ? "" : v; },
+    clear: function () { cmp.role = ""; }
+  });
+};
+$("cmpLinkBtn").onclick = function () {
+  const row = $("cmpLinkRow");
+  row.hidden = !row.hidden;
+  if (!row.hidden) $("showUrl").focus();
+};
+$("showText").addEventListener("input", refreshComposer);
 
 function resetShowForm() {
   $("showForm").reset();
   $("showYear").value = new Date().getFullYear();
-  $("showCourse").dispatchEvent(new Event("input")); // repaints the course chips
+  cmp.course = ""; cmp.tools = []; cmp.role = "";
+  $("cmpLinkRow").hidden = true;
+  closePicker();
   clearThumbPreview();
-  closeExtras();
-  renderToolChips();
-  syncPost();
+  refreshComposer();
 }
-
-// Facebook-style composer: Post stays off until there is a title; Course, Tools and Role open only when tapped
-function syncPost() { $("showPost").disabled = !$("showTitle").value.trim(); }
-function closeExtras() {
-  document.querySelectorAll("#showForm [data-extra]").forEach(function (b) {
-    $(b.dataset.extra).hidden = true;
-    b.setAttribute("aria-pressed", "false");
-  });
-}
-document.querySelectorAll("#showForm [data-extra]").forEach(function (b) {
-  b.onclick = function () {
-    const box = $(b.dataset.extra);
-    box.hidden = !box.hidden;
-    b.setAttribute("aria-pressed", box.hidden ? "false" : "true");
-    if (!box.hidden) { const f = box.querySelector("input"); if (f) f.focus(); }
-  };
-});
-$("showTitle").addEventListener("input", syncPost);
 $("showThumbClear").onclick = function () { $("showThumb").value = ""; clearThumbPreview(); };
 
 function clearThumbPreview() {
@@ -1817,18 +1896,32 @@ $("showThumb").onchange = function () {
   $("showThumbClear").hidden = false;
 };
 
-// Opening the form puts the cursor in Title, so you can type straight away
+// Opening the composer takes the whole screen; the cursor lands in the text box
+function composerOpen(open) { document.body.classList.toggle("cmp-open", open); }
 $("showAdd").addEventListener("toggle", function () {
-  if ($("showAdd").open) { showMessage(""); $("showTitle").focus(); }
+  const open = $("showAdd").open;
+  composerOpen(open);
+  if (!open) return;
+  showMessage("");
+  const src = $("showPostAvatar");
+  $("cmpAvatar").innerHTML = src.innerHTML;
+  $("cmpAvatar").style.cssText = src.style.cssText;
+  $("cmpAvatar").className = src.className;
+  $("cmpName").textContent = $("showPostName").textContent;
+  refreshComposer();
+  $("showText").focus();
 });
-$("showCancel").onclick = function () {
+function closeComposer(force) {
+  if (!force && $("showText").value.trim() && !confirm("Discard this post?")) return;
   resetShowForm();
   $("showAdd").open = false;
-};
-$("showUrl").addEventListener("input", function () { $("showUrl").setCustomValidity(""); });
-$("showTitle").addEventListener("keydown", function (event) {
-  if (event.key === "Enter") { event.preventDefault(); $("showNote").focus(); }
+}
+$("showCancel").onclick = function () { closeComposer(false); };
+document.addEventListener("keydown", function (event) {
+  if (event.key !== "Escape" || !$("showAdd").open) return;
+  if (picker) closePicker(); else closeComposer(false);
 });
+$("showUrl").addEventListener("input", function () { $("showUrl").setCustomValidity(""); });
 $("showClear").onclick = function () {
   showTool = "";
   showLevel = 0;
@@ -1845,11 +1938,17 @@ $("showForm").onsubmit = function (event) {
     return;
   }
   const file = $("showThumb").files[0];
+  // First line is the title; anything after it is the note
+  const raw = $("showText").value.replace(/\r/g, "");
+  const nl = raw.indexOf("\n");
+  let title = (nl < 0 ? raw : raw.slice(0, nl)).trim();
+  let note = nl < 0 ? "" : raw.slice(nl + 1).trim();
+  if (title.length > 120) { note = (title.slice(120) + (note ? "\n" + note : "")).trim(); title = title.slice(0, 120).trim(); }
   const finish = function (thumb) {
     const entry = cleanShow({
-      title: $("showTitle").value, course: $("showCourse").value, year: $("showYear").value, level: $("showLevel").value,
-      url: urlText, tools: $("showTools").value, role: $("showRole").value,
-      note: $("showNote").value, thumb: thumb
+      title: title, course: cmp.course, year: $("showYear").value, level: $("showLevel").value,
+      url: urlText, tools: cmp.tools, role: cmp.role,
+      note: note, thumb: thumb
     });
     if (!entry) return;
     if (showcase.length >= LIMITS.showcase) { alert("The Showcase is full (" + LIMITS.showcase + " pieces). Remove one first."); return; }
@@ -1859,8 +1958,7 @@ $("showForm").onsubmit = function (event) {
       alert("Browser storage is full. Export a backup and remove something first.");
       return;
     }
-    resetShowForm();
-    $("showAdd").open = false;
+    closeComposer(true);
     // Clear any filter that would hide the new piece, then bring it into view
     showTool = "";
     showLevel = 0;

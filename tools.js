@@ -12,7 +12,7 @@
 
   // ===== Course picker: tap a chip instead of typing =====
   const LAST = "cadence:lastCourse";
-  const inputs = ["deadlineCourse", "projectCourse", "showCourse"].map($id).filter(Boolean);
+  const inputs = ["deadlineCourse", "projectCourse"].map($id).filter(Boolean);
   const bars = [];
 
   function shortName(name) {

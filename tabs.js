@@ -36,6 +36,7 @@
     avatarBtn.setAttribute("aria-pressed", MENU_FAMILY.indexOf(name) >= 0 ? "true" : "false");
     try { localStorage.setItem(KEY, name); } catch (e) {}
     if (location.hash !== "#" + name) history.replaceState(null, "", "#" + name);
+    if (jumpTo === "showcaseSection" && window.pcTab) window.pcTab("showcase");
     const target = jumpTo && document.getElementById(jumpTo);
     if (target) target.scrollIntoView({ block: "start" }); else window.scrollTo(0, 0);
     // Projects goes straight into the team chat. The list page only shows for New / Join or when there is no project yet.
