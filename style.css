@@ -1180,7 +1180,7 @@ html.share-view #shareView { display: block; max-width: 720px; margin: 0 auto; p
 .tap { cursor: pointer; }
 strong.tap:hover { text-decoration: underline; }
 .tap:focus-visible { outline: 2px solid var(--accent, currentColor); outline-offset: 2px; border-radius: 6px; }
-.pf-sheet { position: fixed; inset: 0; z-index: 100; display: flex; align-items: flex-end; justify-content: center; background-color: rgba(0, 0, 0, 0.45); }
+.pf-sheet { position: fixed; inset: 0; z-index: 1600; display: flex; align-items: flex-end; justify-content: center; background-color: rgba(0, 0, 0, 0.45); }
 .pf-panel { width: min(520px, 100%); max-height: 85%; overflow-y: auto; box-sizing: border-box; background-color: var(--panel); border: 1px solid var(--line); border-radius: 20px 20px 0 0; padding: 18px 16px calc(18px + env(safe-area-inset-bottom, 0px)); outline: none; }
 .pf-panel .soc-person { margin: 0; padding: 0; border: 0; background: none; }
 @media (min-width: 700px) { .pf-sheet { align-items: center; } .pf-panel { border-radius: 20px; padding-bottom: 18px; } }
@@ -2787,7 +2787,7 @@ body.hub-open { overflow: hidden; }
 .pf-tagbtn .dc-tag { margin-right: auto; }
 .pf-tagnone { margin-right: auto; color: var(--muted); }
 .pf-tagnext { display: grid; place-items: center; color: var(--muted); }
-.tg-sheet { position: fixed; inset: 0; z-index: 400; display: flex; align-items: flex-end; justify-content: center; background-color: rgba(0, 0, 0, 0.5); }
+.tg-sheet { position: fixed; inset: 0; z-index: 1600; display: flex; align-items: flex-end; justify-content: center; background-color: rgba(0, 0, 0, 0.5); }
 .tg-panel { position: relative; width: min(520px, 100%); max-height: 88%; overflow-y: auto; box-sizing: border-box; background-color: var(--bg); border: 1px solid var(--line); border-radius: 22px 22px 0 0; padding: 10px 16px calc(18px + env(safe-area-inset-bottom, 0px)); }
 .tg-grip { width: 44px; height: 5px; margin: 0 auto 12px; border-radius: 3px; background-color: var(--line); }
 .tg-title { margin: 0 0 14px; text-align: center; font-size: 1.15rem; }

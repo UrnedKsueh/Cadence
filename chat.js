@@ -392,6 +392,19 @@ function setTitle() {
   renderPeople();
 }
 
+function tapProfile(el, uid, name) {
+  if (!uid) return el;
+  el.classList.add("tap");
+  el.tabIndex = 0;
+  el.setAttribute("role", "button");
+  el.setAttribute("aria-label", "View " + name + "'s profile");
+  el.removeAttribute("aria-hidden");
+  const go = function (e) { e.stopPropagation(); if (window.CadenceProfile) window.CadenceProfile.open(uid, name); };
+  el.onclick = go;
+  el.onkeydown = function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(e); } };
+  return el;
+}
+
 // People list on the right (wide landscape screens only)
 function renderPeople() {
   if (!cur || !ui) return;
@@ -402,8 +415,8 @@ function renderPeople() {
   others.forEach(function (uid) {
     const name = (p.names && p.names[uid]) || "Member";
     const r = mk("div", "chat-person");
-    r.appendChild(avatarFor(uid, name, "chat-ava"));
-    r.appendChild(mk("span", "chat-person-name", me && uid === me.uid ? name + " (you)" : name));
+    r.appendChild(tapProfile(avatarFor(uid, name, "chat-ava"), uid, name));
+    r.appendChild(tapProfile(mk("span", "chat-person-name", me && uid === me.uid ? name + " (you)" : name), uid, name));
     if (uid === p.createdBy) r.appendChild(mk("small", "chat-person-tag", "Owner"));
     box.appendChild(r);
   });
@@ -1087,15 +1100,15 @@ function render(stick) {
     const wrap = mk("div", "chat-row" + (mine ? " chat-row-mine" : "") + (cont ? " chat-cont" : ""));
     // Two avatar slots: the bubble layout (phones) uses the lower one, the flat layout (wide screens) the upper one
     const slotB = mk("span", "chat-slot chat-slot-b");
-    if (lastOfGroup) slotB.appendChild(avatarFor(m.uid, m.name, "chat-ava"));
+    if (lastOfGroup) slotB.appendChild(tapProfile(avatarFor(m.uid, m.name, "chat-ava"), m.uid, m.name || "Member"));
     const slotT = mk("span", "chat-slot chat-slot-t");
-    if (!cont) slotT.appendChild(avatarFor(m.uid, m.name, "chat-ava"));
+    if (!cont) slotT.appendChild(tapProfile(avatarFor(m.uid, m.name, "chat-ava"), m.uid, m.name || "Member"));
     wrap.appendChild(slotB); wrap.appendChild(slotT);
     wrap.dataset.mid = m.id;
     const row = mk("div", "chat-msg" + (mine ? " chat-mine" : "") + (tagged || (m.everyone && !mine) ? " chat-tagged" : ""));
     if (!cont) {
       const meta = mk("div", "chat-meta");
-      meta.appendChild(mk("strong", "", mine ? "You" : (m.name || "Member")));
+      meta.appendChild(tapProfile(mk("strong", "", mine ? "You" : (m.name || "Member")), m.uid, m.name || "Member"));
       meta.appendChild(mk("small", "", timeLabel(m.t)));
       row.appendChild(meta);
     }
