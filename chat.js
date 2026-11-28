@@ -3,7 +3,7 @@
 // Messages are stored in sharedProjects/{pid}/threads/{threadId}/messages. Loads after sharedprojects.js.
 // Built for the free plan: only the open thread is listened to, history loads 30 messages at a time,
 // and unread state is a map on the project document.
-import { avatarFor } from "./avatars.js";
+import { avatarFor, getProfile } from "./avatars.js";
 import { getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, collection, query, where, orderBy, limit, startAfter, getDocs, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, serverTimestamp, Timestamp, arrayUnion, arrayRemove }
@@ -634,14 +634,22 @@ function fillPicker() {
       if (!shut) list.forEach(function (s) { panel.appendChild(drawerRow({ id: s.id, label: "Stage: " + s.name }, u, "stage")); });
     });
   }
-  // Docked profile card (landscape only; hidden by CSS elsewhere)
+  const old = ui.drawer.querySelector(".chat-me");
+  if (old) old.remove();
   const card = mk("div", "chat-me");
   const who = (me && ((cur.p.names && cur.p.names[me.uid]) || me.displayName)) || "You";
-  card.appendChild(avatarFor(me ? me.uid : "", who, "chat-me-ava"));
+  const main = mk("button", "chat-me-main");
+  main.type = "button";
+  main.setAttribute("aria-label", "Open your profile");
+  main.appendChild(avatarFor(me ? me.uid : "", who, "chat-me-ava"));
   const txt = mk("span", "chat-me-txt");
   txt.appendChild(mk("strong", "", who));
-  txt.appendChild(mk("small", "", cur.p.name));
-  card.appendChild(txt);
+  const sub = mk("small", "", cur.p.name);
+  txt.appendChild(sub);
+  main.appendChild(txt);
+  main.onclick = function () { if (me && window.CadenceProfile) window.CadenceProfile.open(me.uid, who); };
+  card.appendChild(main);
+  if (me) getProfile(me.uid).then(function (p) { if (p && p.handle) sub.textContent = "@" + p.handle; });
   const x = mk("button", "secondary chat-me-bell");
   x.type = "button";
   x.setAttribute("aria-label", "Notifications");
@@ -649,7 +657,7 @@ function fillPicker() {
   x.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span class="chat-me-bell-count" hidden></span>';
   x.onclick = function (e) { e.stopPropagation(); toggleNotifFromChat(); };
   card.appendChild(x);
-  panel.appendChild(card);
+  ui.drawer.appendChild(card);
   syncBellCount();
 }
 

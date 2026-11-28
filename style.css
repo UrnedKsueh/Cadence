@@ -2023,13 +2023,7 @@ button:focus:not(:focus-visible), a:focus:not(:focus-visible), summary:focus:not
 .chat-cat.shut .chat-cat-caret { transform: rotate(-90deg); }
 .chat-cat-name { flex: 1; }
 .chat-cat-count { font-weight: 600; opacity: 0.8; }
-.chat-me { display: none; }
 @media (min-width: 900px) and (orientation: landscape) {
-  .chat-channels .chat-me { display: flex; align-items: center; gap: 10px; position: sticky; bottom: -4px; margin: 12px -4px -4px; padding: 10px; border-radius: 16px; background-color: var(--tint-a, var(--panel)); border: 1px solid var(--line); box-shadow: 0 -10px 16px -8px var(--panel); }
-  .chat-me-ava { flex: none; width: 38px; height: 38px; }
-  .chat-me-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-  .chat-me-txt strong, .chat-me-txt small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .chat-me-txt small { color: var(--muted); }
   .chat-me-close { flex: none; min-height: 36px; padding: 0 12px; border-radius: 12px; font-size: 0.85rem; }
 }
 
@@ -2294,11 +2288,6 @@ main { padding-bottom: calc(32px + env(safe-area-inset-bottom, 0px)) !important;
   .chat-overlay.chat-home .chat-home-acts button { flex: 1; min-height: 40px; padding: 0 8px; border-radius: 12px; font-size: 0.85rem; }
 
   /* docked profile card with notifications */
-  .chat-overlay.chat-home .chat-channels .chat-me { display: flex; align-items: center; gap: 10px; position: sticky; bottom: -4px; margin: 12px -4px -4px; padding: 10px; border-radius: 16px; background-color: var(--tint-a, var(--panel)); border: 1px solid var(--line); box-shadow: 0 -10px 16px -8px var(--panel); }
-  .chat-overlay.chat-home .chat-me-ava { flex: none; width: 38px; height: 38px; }
-  .chat-overlay.chat-home .chat-me-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-  .chat-overlay.chat-home .chat-me-txt strong, .chat-overlay.chat-home .chat-me-txt small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .chat-overlay.chat-home .chat-me-txt small { color: var(--muted); }
   .chat-overlay.chat-home .chat-me-bell { position: relative; display: grid; place-items: center; flex: none; width: 40px; height: 40px; min-height: 0; padding: 0; border-radius: 12px; }
   .chat-overlay.chat-home .chat-me-bell-count { position: absolute; top: -5px; right: -5px; min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 9px; background-color: #e5484d; color: #ffffff; font-size: 0.7rem; font-weight: 700; line-height: 18px; text-align: center; }
   .chat-overlay.chat-home .chat-me-bell-count[hidden] { display: none; }
@@ -2820,3 +2809,12 @@ body.hub-open { overflow: hidden; }
 .tc-sub { margin-top: 2px; color: var(--muted); font-size: 0.9rem; }
 .tc-desc { margin: 12px 0 16px; line-height: 1.45; }
 .tc-close { width: 100%; min-height: 46px; border-radius: 12px; }
+
+.chat-channels > .chat-me { position: relative; z-index: 1; flex: none; display: flex; align-items: center; gap: 8px; padding: 8px 10px calc(8px + env(safe-area-inset-bottom, 0px)); background-color: color-mix(in srgb, var(--accent) 18%, var(--panel)); border-top: 1px solid var(--line); }
+.chat-me-main { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 4px 8px; margin: 0; border: 0; border-radius: 12px; background: none; color: var(--text); text-align: left; font: inherit; }
+.chat-me-main:hover { filter: none; background-color: color-mix(in srgb, var(--text) 8%, transparent); }
+.chat-me-ava { flex: none; width: 38px; height: 38px; }
+.chat-me-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.chat-me-txt strong, .chat-me-txt small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-me-txt small { color: var(--muted); }
+.chat-overlay .chat-drawer.chat-channels:has(> .chat-me) > .chat-drawer-panel { padding-bottom: 8px; }
