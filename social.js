@@ -233,18 +233,58 @@ function parseTag(raw) {
   return { name: m[0].trim(), icon: ic >= 1 && ic <= TAG_ICONS ? ic : 0 };
 }
 function tagValue(name, icon) { return name ? name + "|" + (icon || 1) : ""; }
-function tagChip(raw) {
+function tagYear(name) {
+  const f = TAGS.filter(function (t) { return t.n === name; })[0];
+  return f ? f.y : name;
+}
+function tagChip(raw, still) {
   const t = parseTag(raw);
   if (!t.name) return null;
   const c = mk("span", "dc-tag");
   if (t.icon) { const im = mk("img"); im.src = "tags/tag" + t.icon + ".png"; im.alt = ""; c.appendChild(im); }
-  c.appendChild(mk("span", "", t.name));
+  c.appendChild(mk("span", "", tagYear(t.name)));
+  if (!still) {
+    c.classList.add("tap"); c.tabIndex = 0; c.setAttribute("role", "button");
+    c.setAttribute("aria-label", "About the " + t.name + " tag");
+    const go = function (e) { e.preventDefault(); e.stopPropagation(); openTagCard(raw); };
+    c.onclick = go;
+    c.onkeydown = function (e) { if (e.key === "Enter" || e.key === " ") go(e); };
+  }
   return c;
+}
+function openTagCard(raw) {
+  const t = parseTag(raw);
+  if (!t.name) return;
+  const info = TAGS.filter(function (x) { return x.n === t.name; })[0];
+  const ords = { "1ST": "first", "2ND": "second", "3RD": "third", "4TH": "fourth" };
+  const year = info ? info.y : "";
+  const section = t.name.slice(-1);
+  const ov = mk("div", "tc-sheet");
+  ov.setAttribute("role", "dialog"); ov.setAttribute("aria-modal", "true"); ov.setAttribute("aria-label", t.name + " tag");
+  const card = mk("div", "tc-card");
+  const icon = mk("span", "tc-icon"); const im = mk("img"); im.src = "tags/tag" + (t.icon || 1) + ".png"; im.alt = ""; icon.appendChild(im);
+  const body = mk("div", "tc-body");
+  const name = mk("div", "tc-name"); name.appendChild(mk("span", "", t.name));
+  const chip = tagChip(raw, true); if (chip) name.appendChild(chip);
+  body.appendChild(name);
+  if (year) body.appendChild(mk("div", "tc-sub", year + " year"));
+  body.appendChild(mk("p", "tc-desc", year ? "For " + ords[year] + " year BSEMC students in section " + section + "." : "A Cadence profile tag."));
+  const close = mk("button", "tc-close", "Close"); close.type = "button";
+  body.appendChild(close);
+  card.append(mk("div", "tc-banner"), icon, body);
+  ov.appendChild(card);
+  function shut() { ov.remove(); document.removeEventListener("keydown", esc, true); }
+  function esc(e) { if (e.key === "Escape") { e.stopImmediatePropagation(); e.preventDefault(); shut(); } }
+  close.onclick = shut;
+  ov.onclick = function (e) { if (e.target === ov) shut(); };
+  document.addEventListener("keydown", esc, true);
+  document.body.appendChild(ov);
+  close.focus();
 }
 function paintTagBtn() {
   const b = $("pfTagBtn"); if (!b) return;
   b.textContent = "";
-  const chip = tagChip($("pfCourse").value);
+  const chip = tagChip($("pfCourse").value, true);
   b.appendChild(chip || mk("span", "pf-tagnone", "None"));
   const nx = mk("span", "pf-tagnext"); nx.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
   b.appendChild(nx);
