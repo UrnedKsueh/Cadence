@@ -1,4 +1,4 @@
-const VERSION = "cadence-v4";
+const VERSION = "cadence-v5";
 const SHELL = [
   "./",
   "index.html",

@@ -423,7 +423,7 @@ function friendPicker(p) {
   const friends = window.CadenceFriends ? window.CadenceFriends.list() : [];
   const avail = friends.filter(function (f) { return p.members.indexOf(f.uid) < 0; });
   if (!friends.length) {
-    det.appendChild(mk("p", "hint", "You have no friends on Cadence yet. Add friends from your Profile tab, or add someone by handle below."));
+    det.appendChild(mk("p", "hint", "You have no friends on Cadence yet. Add friends from your Profile tab, or add someone by username below."));
     return det;
   }
   if (!avail.length) {
@@ -472,7 +472,7 @@ function memberBar(p) {
   }
   box.appendChild(mk("h3", "sp-mlabel", "Members \u2014 " + p.members.length));
   const list = mk("div", "sp-mlist");
-  if (!p.members.length) list.appendChild(mk("p", "hint sp-mempty", manage(p) ? "No members yet. Add people by their handle." : "No members listed."));
+  if (!p.members.length) list.appendChild(mk("p", "hint sp-mempty", manage(p) ? "No members yet. Add people by their username." : "No members listed."));
   p.members.forEach(function (uid) {
     const nm = nameOf(p, uid);
     const row = mk("div", "sp-mrow");
@@ -507,20 +507,20 @@ function memberBar(p) {
 
   if (manage(p)) {
     const det = mk("details", "sp-bh");
-    det.appendChild(mk("summary", "", "Add by handle"));
+    det.appendChild(mk("summary", "", "Add by username"));
     const form = mk("form", "sp-row sp-add");
     form.autocomplete = "off";
     const input = mk("input", "field");
-    input.placeholder = "Add by handle, e.g. @mei";
+    input.placeholder = "Add by username, e.g. @mei";
     input.maxLength = 21;
-    input.setAttribute("aria-label", "Handle of the person to add");
+    input.setAttribute("aria-label", "Username of the person to add");
     const btn = mk("button", "", "Add member");
     btn.type = "submit";
     form.appendChild(input); form.appendChild(btn);
     form.onsubmit = async function (e) {
       e.preventDefault();
       const h = input.value.trim().replace(/^@/, "").toLowerCase();
-      if (!HANDLE_RE.test(h)) { say("Handles are 3-20 letters, numbers or _."); return; }
+      if (!HANDLE_RE.test(h)) { say("Usernames are 3-20 letters, numbers or _."); return; }
       btn.disabled = true;
       try {
         const hs = await getDoc(doc(db, "handles", h));
@@ -590,7 +590,7 @@ function inviteBox(p) {
     on.onclick = make;
     row.appendChild(on);
     box.appendChild(row);
-    box.appendChild(mk("p", "hint", "Lets students join on their own, so you don't add each handle."));
+    box.appendChild(mk("p", "hint", "Lets students join on their own, so you don't add each username."));
   }
   return box;
 }
@@ -1253,7 +1253,7 @@ function openInvite(pid) {
     const friends = window.CadenceFriends ? window.CadenceFriends.list() : [];
     const q = search.value.trim().toLowerCase();
     const shown = friends.filter(function (f) { return !q || String(f.nickname || "").toLowerCase().indexOf(q) >= 0 || String(f.handle || "").toLowerCase().indexOf(q) >= 0; });
-    if (!friends.length) { list.appendChild(mk("p", "hint", "You have no friends on Cadence yet. Search a handle in the top bar to add one, or share the code above.")); return; }
+    if (!friends.length) { list.appendChild(mk("p", "hint", "You have no friends on Cadence yet. Search a username in the top bar to add one, or share the code above.")); return; }
     if (!shown.length) { list.appendChild(mk("p", "hint", "No friends match that search.")); return; }
     shown.forEach(function (f) {
       const row = mk("div", "pj-inv-row");

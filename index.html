@@ -82,7 +82,7 @@
     <button type="button" class="gs-row" data-gs="resources"><span>Resources</span><small>Guides, links and references</small></button>
     <button type="button" class="gs-row" data-gs="projects"><span>Projects</span><small>Your shared projects</small></button>
     <button type="button" class="gs-row" data-gs="posts"><span>Community posts</span><small>Filters the feed on Home</small></button>
-    <button type="button" class="gs-row" data-gs="people"><span>Accounts</span><small>Find a friend by handle and add them</small></button>
+    <button type="button" class="gs-row" data-gs="people"><span>Accounts</span><small>Find a friend by username and add them</small></button>
   </div>
 
   <div class="panel" id="panel-home" role="tabpanel" aria-labelledby="tab-home" tabindex="-1">
@@ -454,7 +454,7 @@
           </div>
           <label for="pfNick">Nickname</label>
           <input id="pfNick" class="field" maxlength="30" required placeholder="What friends see">
-          <label for="pfHandle">Handle</label>
+          <label for="pfHandle">Username</label>
           <input id="pfHandle" class="field" maxlength="20" required autocapitalize="off" spellcheck="false" placeholder="letters, numbers, _ (3-20)">
           <label for="pfTagBtn">Tag (optional)</label>
           <button type="button" id="pfTagBtn" class="pf-tagbtn" aria-haspopup="dialog"></button>
@@ -503,7 +503,7 @@
       </div>
       <h3 class="soc-h" id="friendsH">Your friends</h3>
       <div class="soc-list" id="friendList"></div>
-      <p class="hint" id="friendEmpty">No friends yet. Search their handle in the top bar, or send them your invite link.</p>
+      <p class="hint" id="friendEmpty">No friends yet. Search their username in the top bar, or send them your invite link.</p>
       <details id="blockWrap" class="soc-block" hidden><summary>Blocked (<span id="blockCount">0</span>)</summary><div class="soc-list" id="blockList"></div></details>
       <div class="row" id="inviteRow"><button type="button" class="secondary" id="inviteBtn">Copy my invite link</button></div>
       <p class="hint" id="friendMsg" aria-live="polite"></p>

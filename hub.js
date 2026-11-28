@@ -178,8 +178,8 @@ async function renderFriends() {
     if (!pin.length && !pout.length) body.appendChild(mk("p", "hint", "No pending requests."));
   } else {
     body.appendChild(mk("div", "hub-label2", "Add Friend"));
-    body.appendChild(mk("p", "hint", "Add a friend with their Cadence handle."));
-    const input = mk("input", "field"); input.type = "text"; input.placeholder = "@handle"; input.setAttribute("aria-label", "Friend's handle");
+    body.appendChild(mk("p", "hint", "Add a friend with their Cadence username."));
+    const input = mk("input", "field"); input.type = "text"; input.placeholder = "@username"; input.setAttribute("aria-label", "Friend's username");
     input.autocapitalize = "none"; input.autocomplete = "off";
     const go = function () { if (input.value.trim() && F().find) F().find(input.value); };
     input.onkeydown = function (e) { if (e.key === "Enter") go(); };

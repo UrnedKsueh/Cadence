@@ -131,13 +131,13 @@ $("profForm").onsubmit = async function (e) {
   const handle = $("pfHandle").value.trim().replace(/^@/, "").toLowerCase();
   const nick = $("pfNick").value.trim();
   if (!nick) { say("pfMsg", "Add a nickname."); return; }
-  if (!HANDLE_RE.test(handle)) { say("pfMsg", "Handle: 3-20 letters, numbers or _."); return; }
+  if (!HANDLE_RE.test(handle)) { say("pfMsg", "Username: 3-20 letters, numbers or _."); return; }
   const btn = e.submitter; if (btn) btn.disabled = true;
   try {
     const old = mine ? mine.handle : "";
     if (handle !== old) {
       const taken = await getDoc(doc(db, "handles", handle));
-      if (taken.exists() && taken.data().uid !== me.uid) { say("pfMsg", "That handle is taken."); return; }
+      if (taken.exists() && taken.data().uid !== me.uid) { say("pfMsg", "That username is taken."); return; }
     }
     const x = window.PC ? window.PC.collect() : { banner: "", theme: "", links: [] };
     const p = { uid: me.uid, nickname: nick.slice(0, 30), handle: handle, color: color, photo: photoData, banner: x.banner, theme: x.theme, updatedAt: Date.now() };
@@ -578,7 +578,7 @@ async function openByHandle(raw) {
   if (!me) return;
   const h = String(raw || "").trim().replace(/^@/, "").toLowerCase();
   return openSheet(async function () {
-    if (!HANDLE_RE.test(h)) throw "Handles are 3-20 letters, numbers or _.";
+    if (!HANDLE_RE.test(h)) throw "Usernames are 3-20 letters, numbers or _.";
     const hs = await getDoc(doc(db, "handles", h));
     const p = hs.exists() ? await getProfile(hs.data().uid) : null;
     if (!p) throw "No one found with @" + h + ".";
@@ -621,5 +621,5 @@ onAuthStateChanged(auth, async function (user) {
   if (pendingAdd) {
     const h = pendingAdd; pendingAdd = "";
     openByHandle(h);
-  } else if (!mine) { say("friendMsg", "Tip: tap Set up profile to pick a nickname and handle."); }
+  } else if (!mine) { say("friendMsg", "Tip: tap Set up profile to pick a nickname and username."); }
 });
