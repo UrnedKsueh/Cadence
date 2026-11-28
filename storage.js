@@ -47,6 +47,7 @@ const Storage = (function () {
       return false; // private mode or full
     }
     scheduleSync();
+    try { window.dispatchEvent(new CustomEvent("cadence:stored", { detail: { key: key } })); } catch (error) { /* ignore */ }
     return true;
   }
 

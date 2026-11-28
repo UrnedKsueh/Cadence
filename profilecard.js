@@ -176,7 +176,7 @@
       var b = document.createElement("button");
       b.type = "button"; b.className = "pc-feat";
       var cover = document.createElement("span"); cover.className = "pc-feat-cover";
-      if (s.thumb) { var im = document.createElement("img"); im.src = s.thumb; im.alt = ""; cover.appendChild(im); }
+      if (s.thumb) { var im = document.createElement("img"); im.src = s.thumb; im.alt = ""; im.loading = "lazy"; cover.appendChild(im); }
       else cover.textContent = (s.title.trim().charAt(0) || "S").toUpperCase();
       var t = document.createElement("strong"); t.textContent = s.title;
       var sub = document.createElement("small"); sub.textContent = s.course ? s.course.split(" \u2013 ")[0] : (s.year ? String(s.year) : "");

@@ -433,14 +433,21 @@ async function publishShowcase() {
     say("friendMsg", "");
   } catch (e) { say("friendMsg", "Couldn't update your Showcase for friends. Make sure the new Firestore rules are published."); }
 }
-// Keep friends' copy current: check for Showcase edits every few seconds while sharing is on
+// Keep friends' copy current: publish a couple of seconds after the Showcase changes while sharing is on
 let lastShow = "";
 function showRaw() { try { return localStorage.getItem("cadence:showcase") || ""; } catch (e) { return ""; } }
-setInterval(function () {
-  if (!me || !$("friendShowToggle").checked || document.hidden) return;
+let showTimer = 0;
+function syncShowcase() {
+  if (!me || !$("friendShowToggle").checked) return;
   const now = showRaw();
   if (now !== lastShow) { lastShow = now; publishShowcase(); }
-}, 5000);
+}
+window.addEventListener("cadence:stored", function (e) {
+  if (!e.detail || e.detail.key !== "showcase") return;
+  clearTimeout(showTimer);
+  showTimer = setTimeout(syncShowcase, 2000);
+});
+document.addEventListener("visibilitychange", function () { if (!document.hidden) syncShowcase(); });
 $("friendShowToggle").onchange = async function () {
   if (!me) return;
   if (this.checked) { await publishShowcase(); return; }

@@ -1528,6 +1528,8 @@ function showCard(s, big) {
   if (s.thumb) {
     const img = document.createElement("img");
     img.src = s.thumb;
+    img.loading = "lazy";
+    img.decoding = "async";
     img.alt = "Thumbnail for " + s.title;
     card.appendChild(img);
   }

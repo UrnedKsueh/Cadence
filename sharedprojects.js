@@ -810,23 +810,6 @@ function row(p) {
   li.appendChild(btn);
   return li;
 }
-function renderDue() {
-  const box = $("pjDue");
-  if (!box) return;
-  const tasks = myTasks().slice(0, 8);
-  box.textContent = "";
-  box.hidden = tasks.length === 0;
-  tasks.forEach(function (t) {
-    const b = mk("button", "pj-due-card");
-    b.type = "button";
-    const dd = stageDue(t.p, t.s);
-    b.appendChild(mk("small", "", t.p.name));
-    b.appendChild(mk("strong", "", t.s.name));
-    b.appendChild(mk("span", "", t.ready ? "Your turn" : t.fix ? "Needs your fix" : (dd ? dueLabel(dd) : t.s.status)));
-    b.onclick = function () { showProject(t.p.id, t.s.id); };
-    box.appendChild(b);
-  });
-}
 // Projects button: open the team chat of the last project used (or the newest one)
 function enter() {
   if (!me) return false;
@@ -1050,7 +1033,7 @@ function render() {
   $("sharedJoinBtn").hidden = !me || admin;
   const list = $("sharedList");
   list.textContent = "";
-  if (window.CadenceChat && window.CadenceChat.inbox) window.CadenceChat.inbox($("chatInbox"), projects);
+  if (window.CadenceChat && window.CadenceChat.inbox) window.CadenceChat.inbox(null, projects);
   updateEmpty();
 }
 function updateEmpty() {

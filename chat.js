@@ -1123,14 +1123,12 @@ function render(stick) {
     const canDel = mine || manage(cur.p);
     const canPin = manage(cur.p);
     const open = cur.menu === m.id;
-    if (canDel || canPin || true) {
-      const dots = mk("button", "chat-dots", "\u22ef");
-      dots.type = "button";
-      dots.setAttribute("aria-label", "Message actions");
-      dots.setAttribute("aria-expanded", open ? "true" : "false");
-      dots.onclick = function () { cur.menu = open ? "" : m.id; cur.picker = ""; render(false); };
-      row.appendChild(dots);
-    }
+    const dots = mk("button", "chat-dots", "\u22ef");
+    dots.type = "button";
+    dots.setAttribute("aria-label", "Message actions");
+    dots.setAttribute("aria-expanded", open ? "true" : "false");
+    dots.onclick = function () { cur.menu = open ? "" : m.id; cur.picker = ""; render(false); };
+    row.appendChild(dots);
     row.addEventListener("contextmenu", function (e) { e.preventDefault(); cur.menu = m.id; render(false); });
     if (m.replyTo) row.appendChild(quoteNode(m.replyTo));
     const body = bodyNode(m);
@@ -2156,8 +2154,6 @@ window.addEventListener("cadence:privateprojects:changed", function () {
   if (pv && !pv.root.hidden) { if (!pvInfo(pv.id)) closePrivate(); else { pvHeader(); } }
 });
 
-// ---- Home inbox: every project chat in one list ----
-let inboxFilter = "";
 function ago(t) {
   if (!t) return "";
   const m = Math.max(0, Math.round((Date.now() - t) / 60000));
@@ -2167,19 +2163,6 @@ function ago(t) {
   if (h < 24) return h + "h ago";
   const d = Math.round(h / 24);
   return d < 8 ? d + "d ago" : new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" });
-}
-function lastChat(p) {
-  const at = p.chatAt && typeof p.chatAt === "object" ? p.chatAt : {};
-  return Object.keys(at).reduce(function (a, k) { return Math.max(a, Number(at[k]) || 0); }, 0);
-}
-function inboxTile(label, count, key, on, fn) {
-  const b = mk("button", "chat-tile" + (on ? " on" : "") + (count ? " has" : ""));
-  b.type = "button";
-  b.setAttribute("aria-pressed", on ? "true" : "false");
-  b.appendChild(mk("strong", "", String(count)));
-  b.appendChild(mk("small", "", label));
-  b.onclick = fn;
-  return b;
 }
 function setTabBadge(n, mention) {
   const tab = document.getElementById("tab-projects");
@@ -2195,7 +2178,6 @@ function setTabBadge(n, mention) {
 
 // The four counters sit inside each project card rather than in a global strip.
 function renderInbox(box, projects) {
-  if (box) { box.textContent = ""; box.hidden = true; }
   if (!me) { setTabBadge(0, false); return; }
   const rows = projects.map(function (p) { return unreadFor(p); });
   setTabBadge(rows.filter(function (u) { return u.threads.size; }).length, rows.some(function (u) { return u.mention; }));

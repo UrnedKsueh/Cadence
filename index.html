@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https://*.googleapis.com https://www.gstatic.com https://*.firebaseapp.com; frame-src https://*.firebaseapp.com https://accounts.google.com https://content.googleapis.com https://www.youtube-nocookie.com https://player.vimeo.com; object-src 'none'; base-uri 'self'; form-action 'self'">
 <meta name="theme-color" content="#191923">
 <meta name="description" content="Plan shots, track deadlines and show off your finished animation work.">
 <title>Cadence</title>
@@ -194,8 +195,6 @@
         </div>
       </div>
     </div>
-    <div id="pjDue" class="pj-due" hidden></div>
-    <div id="chatInbox" class="chat-inbox" hidden></div>
     <details class="shots add-piece pj-form" id="sharedAdd" hidden>
       <summary>New shared project</summary>
       <form id="sharedForm" autocomplete="off">
@@ -724,69 +723,7 @@
 <script src="calendar.js"></script>
 <script src="pwa.js"></script>
 <div class="sheet-backdrop" id="dlBackdrop" hidden></div>
-<script>
-/* Portrait home: Overview/Calendar pill, and Deadlines in a bottom sheet. Landscape ignores all of this. */
-(function () {
-  var grid = document.querySelector(".home-grid");
-  var sheet = document.getElementById("deadlinesSheet");
-  var back = document.getElementById("dlBackdrop");
-  var mq = window.matchMedia("not all and (min-width: 900px) and (orientation: landscape)");
-  if (!grid || !sheet || !back) return;
-  grid.setAttribute("data-view", "overview");
-
-  function setView(v) {
-    grid.setAttribute("data-view", v);
-    ["overview", "calendar"].forEach(function (k) {
-      var b = document.getElementById(k === "overview" ? "pillOverview" : "pillCalendar");
-      if (b) b.setAttribute("aria-selected", k === v ? "true" : "false");
-    });
-  }
-  document.getElementById("homePill").addEventListener("click", function (e) {
-    var b = e.target.closest("[data-view]");
-    if (b) setView(b.getAttribute("data-view"));
-  });
-
-  function openSheet(focusName) {
-    if (!mq.matches) return false;
-    sheet.classList.add("sheet-open");
-    back.hidden = false;
-    document.body.classList.add("dl-open");
-    sheet.scrollTop = 0;
-    if (focusName) { var n = document.getElementById("deadlineName"); if (n) n.focus(); }
-    return true;
-  }
-  function closeSheet() {
-    sheet.classList.remove("sheet-open");
-    back.hidden = true;
-    document.body.classList.remove("dl-open");
-  }
-  window.openDeadlines = openSheet;
-  document.getElementById("dlClose").addEventListener("click", closeSheet);
-  back.addEventListener("click", closeSheet);
-  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeSheet(); });
-  /* Portrait: course filter joins the pill row; the greeting and post form move into the Community card. */
-  var pillRow = document.getElementById("homePill");
-  var filter = document.querySelector(".ov-filter");
-  var filterHome = filter && filter.parentNode;
-  var hello = document.querySelector(".home-hello");
-  var helloHome = hello && hello.parentNode;
-  var composer = document.querySelector(".composer");
-  var feed = document.querySelector(".home-feed");
-  function place() {
-    if (mq.matches) {
-      if (filter && filter.parentNode !== pillRow) pillRow.appendChild(filter);
-      if (composer && feed && composer.parentNode !== feed) feed.insertBefore(composer, feed.firstChild);
-    } else {
-      if (filter && filterHome && filter.parentNode !== filterHome) filterHome.appendChild(filter);
-      if (composer && feed && composer.parentNode === feed) feed.parentNode.insertBefore(composer, feed);
-    }
-    /* Greeting sits in the post card at every size, so the header only holds logo + search */
-    if (hello && composer && hello.parentNode !== composer) composer.insertBefore(hello, composer.firstChild);
-  }
-  place();
-  if (mq.addEventListener) mq.addEventListener("change", function () { place(); if (!mq.matches) closeSheet(); });
-})();
-</script>
+<script src="homesheet.js"></script>
 
 
 </body>
