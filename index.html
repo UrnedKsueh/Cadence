@@ -457,8 +457,9 @@
           <input id="pfNick" class="field" maxlength="30" required placeholder="What friends see">
           <label for="pfHandle">Handle</label>
           <input id="pfHandle" class="field" maxlength="20" required autocapitalize="off" spellcheck="false" placeholder="letters, numbers, _ (3-20)">
-          <label for="pfCourse">Course (optional)</label>
-          <input id="pfCourse" class="field" list="courses" maxlength="60">
+          <label for="pfTagBtn">Tag (optional)</label>
+          <button type="button" id="pfTagBtn" class="pf-tagbtn" aria-haspopup="dialog"></button>
+          <input id="pfCourse" type="hidden" maxlength="60">
           <label for="pfBio">Bio</label>
           <textarea id="pfBio" class="field" rows="3" maxlength="160" placeholder="A line about you"></textarea>
           <label>Avatar colour</label>

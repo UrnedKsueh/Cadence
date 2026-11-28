@@ -2777,3 +2777,34 @@ body.hub-open { overflow: hidden; }
   .hub-pbio[hidden] { display: none; }
   .hub-prof .hub-btn { margin: auto 16px 16px; }
 }
+
+
+/* ===== Tags (BSEMC year tag with icon) ===== */
+.dc-tag { display: inline-flex; align-items: center; gap: 5px; vertical-align: middle; padding: 2px 8px 2px 4px; border-radius: 6px; background-color: color-mix(in srgb, var(--text) 12%, transparent); color: var(--text); font-size: 0.78rem; font-weight: 700; line-height: 1.2; white-space: nowrap; }
+.dc-tag img { width: 16px; height: 16px; border-radius: 4px; object-fit: cover; display: block; }
+.pf-tagbtn { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 48px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 12px; background-color: var(--panel); color: var(--text); text-align: left; }
+.pf-tagbtn:hover { filter: none; }
+.pf-tagbtn .dc-tag { margin-right: auto; }
+.pf-tagnone { margin-right: auto; color: var(--muted); }
+.pf-tagnext { display: grid; place-items: center; color: var(--muted); }
+.tg-sheet { position: fixed; inset: 0; z-index: 400; display: flex; align-items: flex-end; justify-content: center; background-color: rgba(0, 0, 0, 0.5); }
+.tg-panel { position: relative; width: min(520px, 100%); max-height: 88%; overflow-y: auto; box-sizing: border-box; background-color: var(--bg); border: 1px solid var(--line); border-radius: 22px 22px 0 0; padding: 10px 16px calc(18px + env(safe-area-inset-bottom, 0px)); }
+.tg-grip { width: 44px; height: 5px; margin: 0 auto 12px; border-radius: 3px; background-color: var(--line); }
+.tg-title { margin: 0 0 14px; text-align: center; font-size: 1.15rem; }
+.tg-done { position: absolute; top: 14px; right: 14px; min-height: 36px; padding: 0 14px; border-radius: 10px; }
+.tg-label { margin: 14px 4px 8px; font-size: 0.8rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.tg-icons { display: flex; flex-wrap: wrap; gap: 10px; }
+.tg-icon { width: 56px; height: 56px; min-height: 0; padding: 3px; border: 2px solid transparent; border-radius: 14px; background-color: var(--panel); }
+.tg-icon:hover { filter: none; }
+.tg-icon img { width: 100%; height: 100%; border-radius: 10px; object-fit: cover; display: block; }
+.tg-icon[aria-pressed="true"] { border-color: var(--accent); }
+.tg-list { border: 1px solid var(--line); border-radius: 14px; background-color: var(--panel); overflow: hidden; }
+.tg-row { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 60px; padding: 8px 14px; border: 0; border-radius: 0; background: none; color: var(--text); text-align: left; }
+.tg-row + .tg-row { border-top: 1px solid var(--line); }
+.tg-row:hover { filter: none; background-color: color-mix(in srgb, var(--text) 5%, transparent); }
+.tg-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.tg-txt small { color: var(--muted); }
+.tg-radio { flex: none; width: 24px; height: 24px; box-sizing: border-box; border: 2px solid var(--muted); border-radius: 50%; display: grid; place-items: center; }
+.tg-row.on .tg-radio { border-color: var(--accent); background-color: var(--accent); }
+.tg-row.on .tg-radio::after { content: ""; width: 8px; height: 8px; border-radius: 50%; background-color: #ffffff; }
+@media (min-width: 700px) { .tg-sheet { align-items: center; } .tg-panel { border-radius: 22px; } }

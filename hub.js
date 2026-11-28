@@ -224,7 +224,8 @@ function renderProf(uid, p) {
   box.appendChild(textBtn("View Full Profile", function () { if (window.CadenceProfile) window.CadenceProfile.open(uid, nameOf(p)); }, true));
   if (F().details) F().details(uid).then(function (d) {
     if (other !== uid) return;
-    if (d.course) sub.textContent += " \u2022 " + d.course;
+    const tc = d.course && F().tagChip ? F().tagChip(d.course) : null;
+    if (tc) { sub.appendChild(document.createTextNode(" ")); sub.appendChild(tc); }
     if (d.bio) { bio.textContent = d.bio; bio.hidden = false; }
   });
 }

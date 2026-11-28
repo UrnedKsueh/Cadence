@@ -52,7 +52,9 @@ function paintMine() {
   $("profEditBtn").textContent = has ? "Edit" : "Set up profile";
   if (has) { $("profileName").textContent = mine.nickname; try { localStorage.setItem("cadence:displayName", mine.nickname); } catch (e) {} }
   $("profileHandle").hidden = !has;
-  $("profileHandle").textContent = has ? "@" + mine.handle + (mine.course ? " · " + mine.course : "") : "";
+  $("profileHandle").textContent = has ? "@" + mine.handle : "";
+  const mt = has && mine.course ? tagChip(mine.course) : null;
+  if (mt) { $("profileHandle").appendChild(document.createTextNode(" ")); $("profileHandle").appendChild(mt); }
   ["profileAvatar", "headerAvatar"].forEach(function (id) {
     if (has && mine.photo) { const el = $(id); el.textContent = ""; const im = mk("img"); im.src = mine.photo; im.alt = ""; el.appendChild(im); }
   });
@@ -65,7 +67,7 @@ function openForm(open) {
   if (!open) return;
   const base = mine || { nickname: me.displayName ? me.displayName.trim().split(/\s+/)[0] : "", handle: "", bio: "", course: "", color: COLORS[0] };
   $("pfNick").value = base.nickname; $("pfHandle").value = base.handle;
-  $("pfBio").value = base.bio || ""; $("pfCourse").value = base.course || "";
+  $("pfBio").value = base.bio || ""; $("pfCourse").value = base.course || ""; paintTagBtn();
   color = base.color || COLORS[0]; photoData = base.photo || ""; paintColors(); say("pfMsg", "");
   if (window.PC) window.PC.fill();
   $("pfNick").focus();
@@ -223,6 +225,74 @@ async function refresh() {
 
 // ----- Person card -----
 function closePerson() { if (closeFn) closeFn(); else $("personBox").textContent = ""; }
+// ----- Tags: BSEMC year tag with an icon, saved in the course field as "BSEMC 3A|3" (no new Firestore fields needed) -----
+const TAGS = [{ n: "BSEMC 1A", y: "1ST" }, { n: "BSEMC 2A", y: "2ND" }, { n: "BSEMC 3A", y: "3RD" }, { n: "BSEMC 4A", y: "4TH" }];
+const TAG_ICONS = 5;
+function parseTag(raw) {
+  const m = String(raw || "").split("|"), ic = parseInt(m[1], 10);
+  return { name: m[0].trim(), icon: ic >= 1 && ic <= TAG_ICONS ? ic : 0 };
+}
+function tagValue(name, icon) { return name ? name + "|" + (icon || 1) : ""; }
+function tagChip(raw) {
+  const t = parseTag(raw);
+  if (!t.name) return null;
+  const c = mk("span", "dc-tag");
+  if (t.icon) { const im = mk("img"); im.src = "tags/tag" + t.icon + ".png"; im.alt = ""; c.appendChild(im); }
+  c.appendChild(mk("span", "", t.name));
+  return c;
+}
+function paintTagBtn() {
+  const b = $("pfTagBtn"); if (!b) return;
+  b.textContent = "";
+  const chip = tagChip($("pfCourse").value);
+  b.appendChild(chip || mk("span", "pf-tagnone", "None"));
+  const nx = mk("span", "pf-tagnext"); nx.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
+  b.appendChild(nx);
+}
+function openTagPicker() {
+  const cur = parseTag($("pfCourse").value);
+  let name = TAGS.some(function (t) { return t.n === cur.name; }) ? cur.name : "", icon = cur.icon || 1;
+  const ov = mk("div", "tg-sheet");
+  const panel = mk("div", "tg-panel"); panel.setAttribute("role", "dialog"); panel.setAttribute("aria-label", "Change Tag");
+  const done = mk("button", "tg-done", "Done"); done.type = "button";
+  const iconsBox = mk("div", "tg-icons"), list = mk("div", "tg-list");
+  panel.append(mk("div", "tg-grip"), mk("h3", "tg-title", "Change Tag"), done, mk("div", "tg-label", "Tag icon"), iconsBox, mk("div", "tg-label", "Tag"), list);
+  ov.appendChild(panel);
+  function commit() { $("pfCourse").value = tagValue(name, icon); paintTagBtn(); }
+  function draw() {
+    iconsBox.textContent = "";
+    for (let i = 1; i <= TAG_ICONS; i++) {
+      const b = mk("button", "tg-icon"); b.type = "button";
+      b.setAttribute("aria-label", "Icon " + i); b.setAttribute("aria-pressed", icon === i ? "true" : "false");
+      const im = mk("img"); im.src = "tags/tag" + i + ".png"; im.alt = ""; b.appendChild(im);
+      b.onclick = function () { icon = i; commit(); draw(); };
+      iconsBox.appendChild(b);
+    }
+    list.textContent = "";
+    [{ n: "", y: "" }].concat(TAGS).forEach(function (t) {
+      const on = name === t.n;
+      const r = mk("button", "tg-row" + (on ? " on" : "")); r.type = "button";
+      r.setAttribute("role", "radio"); r.setAttribute("aria-checked", on ? "true" : "false");
+      const txt = mk("span", "tg-txt"); txt.appendChild(mk("strong", "", t.n || "None"));
+      if (t.y) txt.appendChild(mk("small", "", t.y + " year"));
+      r.appendChild(txt);
+      if (t.n) r.appendChild(tagChip(tagValue(t.n, icon)));
+      r.appendChild(mk("span", "tg-radio"));
+      r.onclick = function () { name = t.n; commit(); draw(); };
+      list.appendChild(r);
+    });
+  }
+  function close() { ov.remove(); document.removeEventListener("keydown", esc, true); $("pfTagBtn").focus(); }
+  function esc(e) { if (e.key === "Escape") { e.stopImmediatePropagation(); e.preventDefault(); close(); } }
+  done.onclick = close;
+  ov.onclick = function (e) { if (e.target === ov) close(); };
+  document.addEventListener("keydown", esc, true);
+  draw();
+  document.body.appendChild(ov);
+  done.focus();
+}
+if ($("pfTagBtn")) $("pfTagBtn").onclick = openTagPicker;
+
 function mutualProjects(uid) {
   const api = window.CadenceSharedProjects, all = api && api.list ? api.list() : [];
   return all.filter(function (x) { return me && Array.isArray(x.members) && x.members.indexOf(me.uid) >= 0 && x.members.indexOf(uid) >= 0; });
@@ -257,7 +327,8 @@ function showPerson(p) {
   if (inner) {
     const bio = mk("p", "dc-bio"); bio.hidden = true; body.appendChild(bio);
     getDetails(p.uid).then(function (d) {
-      if (d.course) sub.textContent += " \u2022 " + d.course;
+      const tc = d.course ? tagChip(d.course) : null;
+      if (tc) { sub.appendChild(document.createTextNode(" ")); sub.appendChild(tc); }
       if (d.bio) { bio.textContent = d.bio; bio.hidden = false; }
       (Array.isArray(d.links) ? d.links.slice(0, 3) : []).forEach(function (u) {
         const safe = typeof safeUrl === "function" ? safeUrl(u) : "";
@@ -462,7 +533,7 @@ window.CadenceFriends = {
   accept: function (uid) { return accept(uid); },
   decline: function (uid) { return dropRequest(uid + "_" + me.uid); },
   cancel: function (uid) { return dropRequest(me.uid + "_" + uid); },
-  details: function (uid) { return getDetails(uid); }, mutual: mutualProjects, paintBanner: paintBanner
+  details: function (uid) { return getDetails(uid); }, tagChip: tagChip, mutual: mutualProjects, paintBanner: paintBanner
 };
 
 // ----- Sign-in wiring -----
