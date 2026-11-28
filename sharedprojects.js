@@ -106,10 +106,12 @@ function clean(p) {
   return p;
 }
 
+let loadRetry = 0, loadRetryTimer = null;
 async function load(force) {
   if (!me || loading) return;
   if (!force && Date.now() - lastFetch < 60000) return;
   loading = true;
+  let failed = false;
   try {
     const col = collection(db, "sharedProjects");
     const q = admin
@@ -120,10 +122,19 @@ async function load(force) {
     projects.sort(function (a, b) { return ms(b.createdAt) - ms(a.createdAt); });
     say("");
   } catch (e) {
+    failed = true;
     say("Couldn't load shared projects. Check your connection, and that the shared project rules are published in Firebase.");
   }
   loading = false;
-  lastFetch = Date.now();
+  // A failed load must not count as fresh: try again soon instead of showing an empty list until a manual refresh
+  if (failed) {
+    lastFetch = 0;
+    clearTimeout(loadRetryTimer);
+    if (loadRetry < 4) { loadRetry++; loadRetryTimer = setTimeout(function () { load(true); }, 1500 * loadRetry); }
+  } else {
+    lastFetch = Date.now();
+    loadRetry = 0;
+  }
   loaded = true;
   render();
   window.dispatchEvent(new CustomEvent("cadence:sharedprojects", { detail: projects }));
@@ -803,6 +814,9 @@ function enter() {
       window.CadenceChat.openPrivate(pr.filter(function (x) { return x.id === lid; })[0] ? lid : pr[0].id);
       return true;
     }
+    // Nothing to open from memory: the list may be stale, so look again before settling on the empty page.
+    // When the fresh load finds a project it opens the chat (load() calls resumeTry while pendingEnter is set).
+    if (!loading && Date.now() - lastFetch > 3000) { pendingEnter = true; load(true); }
     return false;
   }
   let id = "";
