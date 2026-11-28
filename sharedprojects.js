@@ -455,34 +455,59 @@ function friendPicker(p) {
   return det;
 }
 
+const ICO_ADDPPL = '<svg viewBox="0 0 24 24" width="24" height="24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M19 8v6M16 11h6"/></svg>';
+const ICO_NEXT = '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>';
+const ICO_CROWN = '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="currentColor"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5L3 8z"/></svg>';
+
 function memberBar(p) {
   const box = mk("div", "sp-members");
-  box.appendChild(mk("h3", "", "People"));
-  const chips = mk("div", "sp-row");
-  if (!p.members.length) chips.appendChild(mk("span", "hint", manage(p) ? "No members yet. Add people by their handle." : "No members listed."));
+  if (manage(p)) {
+    const add = mk("button", "sp-addrow");
+    add.type = "button";
+    const ic = mk("span", "sp-addrow-ico"); ic.innerHTML = ICO_ADDPPL;
+    const nx = mk("span", "sp-addrow-next"); nx.innerHTML = ICO_NEXT;
+    add.append(ic, mk("strong", "", "Add Members"), nx);
+    add.onclick = function () { openInvite(p.id); };
+    box.appendChild(add);
+  }
+  box.appendChild(mk("h3", "sp-mlabel", "Members \u2014 " + p.members.length));
+  const list = mk("div", "sp-mlist");
+  if (!p.members.length) list.appendChild(mk("p", "hint sp-mempty", manage(p) ? "No members yet. Add people by their handle." : "No members listed."));
   p.members.forEach(function (uid) {
-    const c = mk("span", "chip sp-person", nameOf(p, uid));
-    c.insertBefore(avatarFor(uid, (p.names && p.names[uid]) || "?", "sp-ava"), c.firstChild);
+    const nm = nameOf(p, uid);
+    const row = mk("div", "sp-mrow");
+    const main = mk("button", "sp-mmain");
+    main.type = "button";
+    main.appendChild(avatarFor(uid, (p.names && p.names[uid]) || "?", "sp-ava"));
+    main.appendChild(mk("strong", "sp-mname", nm));
+    if (uid === p.createdBy) {
+      const cr = mk("span", "sp-crown"); cr.innerHTML = ICO_CROWN; cr.title = "Owner";
+      cr.setAttribute("role", "img"); cr.setAttribute("aria-label", "Owner");
+      main.appendChild(cr);
+    }
+    if (me && uid === me.uid) main.appendChild(mk("small", "sp-you", "You"));
+    main.onclick = function () { if (window.CadenceProfile) window.CadenceProfile.open(uid, nm); };
+    row.appendChild(main);
     if (manage(p)) {
-      const x = mk("button", "sp-chip-x", "\u2715");
+      const x = mk("button", "sp-mx", "\u2715");
       x.type = "button";
-      x.setAttribute("aria-label", "Remove " + nameOf(p, uid) + " from this project");
+      x.setAttribute("aria-label", "Remove " + nm + " from this project");
       x.onclick = async function () {
-        if (!confirm("Remove " + nameOf(p, uid) + "? Their stages become unassigned.")) return;
+        if (!confirm("Remove " + nm + "? Their stages become unassigned.")) return;
         const names = Object.assign({}, p.names);
         delete names[uid];
         p.stages.forEach(function (s) { if (s.assignee === uid) s.assignee = ""; });
         if (await patch(p, { members: p.members.filter(function (m) { return m !== uid; }), names: names, stages: p.stages })) render();
       };
-      c.appendChild(x);
+      row.appendChild(x);
     }
-    chips.appendChild(c);
+    list.appendChild(row);
   });
-  box.appendChild(chips);
+  box.appendChild(list);
 
   if (manage(p)) {
-    box.appendChild(friendPicker(p));
-    box.appendChild(mk("small", "hint", "Or add someone by their handle:"));
+    const det = mk("details", "sp-bh");
+    det.appendChild(mk("summary", "", "Add by handle"));
     const form = mk("form", "sp-row sp-add");
     form.autocomplete = "off";
     const input = mk("input", "field");
@@ -510,7 +535,8 @@ function memberBar(p) {
       } catch (err) { say("Couldn't add that person. Check your connection and try again."); }
       btn.disabled = false;
     };
-    box.appendChild(form);
+    det.appendChild(form);
+    box.appendChild(det);
   }
   return box;
 }

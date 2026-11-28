@@ -2616,7 +2616,6 @@ body.cmp-open { overflow: hidden; }
 
 /* ===== Home hub: Friends and direct messages ===== */
 body.hub-open { overflow: hidden; }
-#hubBtn[hidden] { display: none; }
 .chat-overlay .chat-rail-btn.chat-rail-logo { position: relative; background-color: var(--accent); color: var(--on-accent); }
 .chat-rail-logo img { width: 26px; height: 26px; object-fit: contain; }
 .hub { position: fixed; inset: 0; z-index: 1500; display: grid; grid-template-columns: 1fr; background-color: var(--bg); color: var(--text); padding-top: env(safe-area-inset-top, 0px); }
@@ -2677,8 +2676,104 @@ body.hub-open { overflow: hidden; }
 .hub .hub-input { margin: 0; flex: 1; min-height: 44px; max-height: 140px; resize: none; line-height: 1.4; }
 .hub .hub-send { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 12px; background-color: var(--accent); color: var(--on-accent); }
 .hub .hub-send:disabled { opacity: 0.5; cursor: default; }
-@media (min-width: 900px) {
+@media (min-width: 900px) and (orientation: landscape) {
   .hub { grid-template-columns: 320px 1fr; }
   .hub[data-view] .hub-side, .hub[data-view] .hub-main { display: flex; }
   .hub .hub-back { display: none; }
+}
+
+
+/* Community: no card behind the feed, only the posts have a background */
+.home-feed { background: none; border: 0; box-shadow: none; padding: 0; border-radius: 0; }
+.home-feed .post { content-visibility: auto; contain-intrinsic-size: auto 420px; }
+
+
+/* Friends hub sits inside the team chat panel: the project rail stays, the hub fills the space beside it */
+.chat-overlay.chat-hubmode.chat-hubmode:not(.chat-saved) > .chat-head,
+.chat-overlay.chat-hubmode.chat-hubmode:not(.chat-saved) > .chat-list,
+.chat-overlay.chat-hubmode.chat-hubmode:not(.chat-saved) > .chat-note,
+.chat-overlay.chat-hubmode.chat-hubmode:not(.chat-saved) > .chat-form,
+.chat-overlay.chat-hubmode.chat-hubmode:not(.chat-saved) > .chat-people,
+.chat-overlay.chat-hubmode.chat-hubmode:not(.chat-saved) > .chat-jump,
+.chat-overlay.chat-hubmode.chat-hubmode:not(.chat-saved) > .chat-channels,
+.chat-overlay.chat-hubmode.chat-hubmode:not(.chat-saved) > .chat-channels[hidden] { display: none !important; }
+.chat-overlay > .hub:not([hidden]) { position: relative; inset: auto; z-index: auto; flex: 1 1 auto; min-height: 0; grid-column: 2 / -1; grid-row: 1 / -1; }
+.chat-overlay.chat-home > .hub:not([hidden]):not([data-view="home"]) { grid-column: 1 / -1; }
+@media (min-width: 900px) and (orientation: landscape) {
+  .chat-overlay > .hub { grid-template-columns: 264px minmax(0, 1fr); }
+}
+@media (min-width: 900px) and (max-width: 1239px) and (orientation: landscape) {
+  .chat-overlay > .hub { grid-template-columns: 240px minmax(0, 1fr); }
+}
+/* Logo is selected like a project tile while Friends is open */
+.chat-overlay .chat-rail-btn.chat-rail-logo.on { border-radius: 16px; }
+.chat-overlay .chat-rail-logo.on::before { content: ""; position: absolute; left: -12px; top: 12px; width: 4px; height: 24px; border-radius: 0 4px 4px 0; background-color: #ffffff; }
+
+
+/* Members list, Discord style: Add Members row, then one rounded card of people */
+.sp-members { border-top: 0; padding-top: 0; margin-top: 14px; }
+.sp-addrow { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 56px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 14px; background-color: var(--panel); color: var(--text); text-align: left; }
+.sp-addrow:hover { filter: none; background-color: color-mix(in srgb, var(--text) 6%, var(--panel)); }
+.sp-addrow strong { flex: 1; font-weight: 600; }
+.sp-addrow-ico, .sp-addrow-next { display: grid; place-items: center; flex: none; color: var(--muted); }
+.sp-addrow-ico { color: var(--text); }
+.sp-members h3.sp-mlabel { margin: 18px 4px 8px; font-size: 0.95rem; font-weight: 600; color: var(--muted); }
+.sp-mlist { border: 1px solid var(--line); border-radius: 14px; background-color: var(--panel); overflow: hidden; }
+.sp-mrow { display: flex; align-items: center; min-height: 60px; }
+.sp-mrow + .sp-mrow { border-top: 1px solid var(--line); }
+.sp-mrow .sp-mmain { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; min-height: 60px; padding: 8px 14px; border: 0; border-radius: 0; background: none; color: var(--text); text-align: left; }
+.sp-mrow .sp-mmain:hover { filter: none; background-color: color-mix(in srgb, var(--text) 5%, transparent); }
+.sp-mrow .pf-ava.sp-ava, .sp-mrow .sp-ava { width: 40px; height: 40px; flex: 0 0 40px; font-size: 1rem; }
+.sp-mname { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.sp-crown { flex: none; display: inline-flex; color: #E0A526; }
+.sp-you { flex: none; padding: 2px 8px; border-radius: 6px; background-color: color-mix(in srgb, var(--text) 10%, transparent); color: var(--muted); font-size: 0.72rem; font-weight: 600; }
+.sp-mrow .sp-mx { flex: none; width: 44px; min-height: 44px; margin-right: 6px; padding: 0; border: 0; background: none; color: var(--muted); }
+.sp-mrow .sp-mx:hover { filter: none; color: var(--text); }
+.sp-mempty { margin: 0; padding: 14px; }
+.sp-bh { margin-top: 12px; }
+.sp-bh > summary { cursor: pointer; color: var(--muted); font-size: 0.88rem; padding: 6px 4px; }
+
+
+/* ===== Discord style profile card ===== */
+.pf-panel:has(.dc-card) { padding: 0; overflow: hidden; border-radius: 20px 20px 0 0; }
+@media (min-width: 700px) { .pf-panel:has(.dc-card) { width: min(360px, 100%); border-radius: 18px; } }
+.soc-person.dc-card { position: relative; margin: 0; padding: 0; gap: 0; border: 0; border-radius: 16px; background-color: var(--panel); overflow: hidden; }
+.pf-panel .soc-person.dc-card { border-radius: 0; }
+.dc-banner { position: relative; height: 104px; background-color: var(--accent); background-size: cover; background-position: center; }
+.dc-x { position: absolute; top: 10px; right: 10px; width: 36px; min-height: 36px; padding: 0; border: 0; border-radius: 50%; background-color: rgba(0, 0, 0, 0.45); color: #fff; font-size: 0.95rem; }
+.dc-x:hover { filter: none; background-color: rgba(0, 0, 0, 0.65); }
+.dc-ava { position: relative; margin: -44px 0 0 16px; width: 88px; height: 88px; border-radius: 50%; background-color: var(--panel); display: grid; place-items: center; }
+.dc-ava .pf-ava, .dc-ava .pf-ava.lg { width: 76px; height: 76px; font-size: 1.9rem; }
+.dc-body { display: flex; flex-direction: column; gap: 8px; padding: 6px 16px 16px; }
+.dc-name { font-size: 1.3rem; line-height: 1.2; overflow-wrap: anywhere; }
+.dc-sub, .dc-hint { color: var(--muted); font-size: 0.9rem; overflow-wrap: anywhere; }
+.dc-mutual { font-size: 0.9rem; color: var(--muted); }
+.dc-bio { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.dc-bio[hidden] { display: none; }
+.dc-msg { margin-top: 6px; }
+.dc-msg .field { margin: 0; width: 100%; box-sizing: border-box; border-radius: 12px; }
+.dc-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
+.dc-acts button { min-height: 40px; border-radius: 10px; }
+
+/* ===== Direct message view: conversation beside a profile panel ===== */
+.hub-dmrow { flex: 1; min-height: 0; display: flex; }
+.hub-dmrow[hidden] { display: none; }
+.hub-dmrow .hub-convo { flex: 1; min-width: 0; }
+.hub-prof { display: none; }
+.hub-profbtn[hidden] { display: none; }
+.hub-compose .hub-input { border-radius: 14px; }
+.hub-msg { border-radius: 8px; padding: 2px 8px; margin: 0 -8px; }
+.hub-msg:hover { background-color: color-mix(in srgb, var(--text) 5%, transparent); }
+@media (min-width: 900px) and (orientation: landscape) {
+  .hub-prof { display: flex; flex-direction: column; flex: none; width: 300px; overflow-y: auto; border-left: 1px solid var(--line); background-color: var(--panel); }
+  .hub.hide-prof .hub-prof { display: none; }
+  .hub-pbanner { flex: none; height: 96px; background-color: var(--accent); background-size: cover; background-position: center; }
+  .hub-pava { flex: none; position: relative; margin: -44px 0 0 16px; width: 88px; height: 88px; border-radius: 50%; background-color: var(--panel); display: grid; place-items: center; }
+  .hub-pava .pf-ava, .hub-pava .pf-ava.lg { width: 76px; height: 76px; font-size: 1.9rem; }
+  .hub-pbody { display: flex; flex-direction: column; gap: 6px; padding: 8px 16px 12px; }
+  .hub-pname { font-size: 1.3rem; overflow-wrap: anywhere; }
+  .hub-psub, .hub-pmu { color: var(--muted); font-size: 0.9rem; overflow-wrap: anywhere; }
+  .hub-pbio { margin: 6px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .hub-pbio[hidden] { display: none; }
+  .hub-prof .hub-btn { margin: auto 16px 16px; }
 }

@@ -223,43 +223,77 @@ async function refresh() {
 
 // ----- Person card -----
 function closePerson() { if (closeFn) closeFn(); else $("personBox").textContent = ""; }
+function mutualProjects(uid) {
+  const api = window.CadenceSharedProjects, all = api && api.list ? api.list() : [];
+  return all.filter(function (x) { return me && Array.isArray(x.members) && x.members.indexOf(me.uid) >= 0 && x.members.indexOf(uid) >= 0; });
+}
+// Banner picture, else the person's theme colour, else their avatar colour
+function paintBanner(el, p) {
+  if (!p) return;
+  if (okBanner(p.banner)) { el.style.backgroundImage = 'url("' + p.banner + '")'; return; }
+  const hex = /^#[0-9a-fA-F]{6}$/;
+  const c = hex.test(p.theme || "") ? p.theme : (hex.test(p.color || "") ? p.color : "");
+  if (c) el.style.backgroundColor = c;
+}
+// Discord style profile card: banner, big avatar, names, mutual projects, bio, message box
 function showPerson(p) {
   const box = target; box.textContent = "";
   if (!p) return;
-  const card = mk("div", "soc-person");
-  if (okBanner(p.banner)) { const bn = mk("div", "soc-banner"); bn.style.backgroundImage = 'url("' + p.banner + '")'; card.appendChild(bn); }
-  const top = mk("div", "top"); top.appendChild(avatar(p, true));
-  const t = mk("div"); t.appendChild(mk("strong", "", nameOf(p)));
-  const sub = mk("small", "", "@" + p.handle);
-  t.appendChild(sub);
-  top.appendChild(t); card.appendChild(top);
-  const rel = relation(p.uid);
-  if (rel === "friends" || rel === "self") {
-    const bio = mk("p"); card.appendChild(bio);
+  const rel = relation(p.uid), inner = rel === "friends" || rel === "self";
+  const card = mk("div", "soc-person dc-card");
+  const bn = mk("div", "dc-banner"); paintBanner(bn, p);
+  const x = mk("button", "dc-x", "\u2715"); x.type = "button"; x.setAttribute("aria-label", "Close"); x.onclick = closePerson;
+  bn.appendChild(x);
+  const ava = mk("div", "dc-ava"); ava.appendChild(avatar(p, true));
+  card.append(bn, ava);
+  const body = mk("div", "dc-body");
+  body.appendChild(mk("strong", "dc-name", nameOf(p)));
+  const sub = mk("div", "dc-sub", p.handle ? "@" + p.handle : "");
+  body.appendChild(sub);
+  if (rel !== "self") {
+    const mu = mutualProjects(p.uid).length;
+    if (mu) body.appendChild(mk("div", "dc-mutual", mu + (mu === 1 ? " Mutual Project" : " Mutual Projects")));
+  }
+  if (inner) {
+    const bio = mk("p", "dc-bio"); bio.hidden = true; body.appendChild(bio);
     getDetails(p.uid).then(function (d) {
-      if (d.course) sub.textContent += " \u00b7 " + d.course; bio.textContent = d.bio || "";
+      if (d.course) sub.textContent += " \u2022 " + d.course;
+      if (d.bio) { bio.textContent = d.bio; bio.hidden = false; }
       (Array.isArray(d.links) ? d.links.slice(0, 3) : []).forEach(function (u) {
         const safe = typeof safeUrl === "function" ? safeUrl(u) : "";
         if (!safe) return;
         const a = mk("a", "soc-link", safe.replace(/^https?:\/\/(www\.)?/, "").replace(/\/$/, ""));
         a.href = safe; a.target = "_blank"; a.rel = "noopener noreferrer";
-        bio.insertAdjacentElement("afterend", a);
+        body.insertBefore(a, form || row);
       });
     });
-  } else card.appendChild(mk("small", "", "Bio and course are only visible to friends."));
-  const row = mk("div", "row");
+  } else body.appendChild(mk("small", "dc-hint", "Bio and course are only visible to friends."));
+  let form = null;
+  if (rel === "friends") {
+    form = mk("form", "dc-msg"); form.autocomplete = "off";
+    const input = mk("input", "field"); input.type = "text"; input.maxLength = 2000;
+    input.placeholder = "Message @" + nameOf(p); input.setAttribute("aria-label", "Message " + nameOf(p));
+    form.appendChild(input);
+    form.onsubmit = function (e) {
+      e.preventDefault();
+      const t = input.value.trim();
+      closePerson();
+      if (window.CadenceHub) window.CadenceHub.open(t ? { dm: p.uid, send: t } : { dm: p.uid });
+    };
+    body.appendChild(form);
+  }
+  const row = mk("div", "row dc-acts");
   const btn = function (label, run, sec) { const b = mk("button", sec ? "secondary" : "", label); b.type = "button"; b.onclick = run; row.appendChild(b); return b; };
   if (rel === "none") btn("Add friend", function () { addFriend(p); });
   else if (rel === "incoming") btn("Accept request", function () { accept(p.uid); });
   else if (rel === "outgoing") btn("Request sent. Cancel?", function () { dropRequest(me.uid + "_" + p.uid); }, true);
   else if (rel === "friends") {
-    btn("Message", function () { closePerson(); if (window.CadenceHub) window.CadenceHub.open({ dm: p.uid }); });
-    btn("View Showcase", function () { viewShowcase(p, card); });
+    btn("View Showcase", function () { viewShowcase(p, card); }, true);
     btn("Remove", function () { unfriend(p); }, true);
   }
-  else if (rel === "self") card.appendChild(mk("small", "", "This is you."));
-  btn("Close", closePerson, true);
-  card.appendChild(row); box.appendChild(card);
+  else if (rel === "self") btn("Edit Profile", function () { closePerson(); const b = $("profEditBtn"); if (b) b.click(); });
+  body.appendChild(row);
+  card.appendChild(body); box.appendChild(card);
   box.scrollIntoView({ block: "nearest", behavior: "smooth" });
 }
 
@@ -427,7 +461,8 @@ window.CadenceFriends = {
   incoming: function () { return incoming.slice(); }, outgoing: function () { return outgoing.slice(); },
   accept: function (uid) { return accept(uid); },
   decline: function (uid) { return dropRequest(uid + "_" + me.uid); },
-  cancel: function (uid) { return dropRequest(me.uid + "_" + uid); }
+  cancel: function (uid) { return dropRequest(me.uid + "_" + uid); },
+  details: function (uid) { return getDetails(uid); }, mutual: mutualProjects, paintBanner: paintBanner
 };
 
 // ----- Sign-in wiring -----

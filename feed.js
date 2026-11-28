@@ -231,7 +231,7 @@ if (!S.id) {
     if (typeof data.image === "string" && data.image.indexOf("data:image/jpeg;base64,") === 0 && data.image.length <= 250000) {
       const pic = mk("img", "post-img");
       pic.src = data.image; pic.alt = "Photo in post by " + String(data.authorName || "a student").slice(0, 40);
-      pic.loading = "lazy";
+      pic.loading = "lazy"; pic.decoding = "async";
       pic.onclick = function () {
         const ov = mk("div", "zoom");
         const big = mk("img", "");

@@ -1648,6 +1648,8 @@ function drawRail() {
   const rail = ui.prail;
   rail.textContent = "";
   const logo = mk("button", "chat-rail-btn chat-rail-logo");
+  const hubOn = !!(window.CadenceHub && window.CadenceHub.isOpen && window.CadenceHub.isOpen());
+  if (hubOn) { logo.classList.add("on"); logo.setAttribute("aria-current", "true"); }
   logo.type = "button"; logo.title = "Friends and messages"; logo.setAttribute("aria-label", "Friends and messages");
   const li = document.createElement("img"); li.src = "logo.png"; li.alt = ""; logo.appendChild(li);
   const hb = window.CadenceHub ? window.CadenceHub.badge() : 0;
@@ -1657,11 +1659,11 @@ function drawRail() {
   rail.appendChild(mk("div", "chat-rail-sep"));
   const all = sp().list();
   all.forEach(function (p) {
-    const b = mk("button", "chat-ptile" + (p.id === cur.p.id ? " on" : ""));
+    const b = mk("button", "chat-ptile" + (p.id === cur.p.id && !hubOn ? " on" : ""));
     b.type = "button";
     b.title = p.name;
     b.setAttribute("aria-label", p.name);
-    if (p.id === cur.p.id) b.setAttribute("aria-current", "true");
+    if (p.id === cur.p.id && !hubOn) b.setAttribute("aria-current", "true");
     const c = railColor(p.name);
     b.style.color = c;
     b.style.backgroundColor = "color-mix(in srgb, " + c + " 22%, var(--panel))";
@@ -1671,7 +1673,7 @@ function drawRail() {
     } else b.appendChild(mk("span", "chat-ptile-ltr", (p.name.trim().charAt(0) || "?").toUpperCase()));
     const n = unreadFor(p).threads.size;
     if (n && p.id !== cur.p.id) b.appendChild(mk("span", "chat-ptile-badge", n > 99 ? "99+" : String(n)));
-    b.onclick = function () { if (p.id !== cur.p.id) openChat(p, ""); };
+    b.onclick = function () { if (p.id !== cur.p.id) openChat(p, ""); else hubClose(); };
     rail.appendChild(b);
   });
   const priv = window.CadencePrivate ? window.CadencePrivate.list() : [];
@@ -1716,8 +1718,20 @@ function drawRail() {
   rail.appendChild(home);
 }
 
+function hubClose() { if (window.CadenceHub) window.CadenceHub.close(); }
+function hostEl() { return ui && cur && !ui.root.hidden ? ui.root : null; }
+// Open the last used project so the Friends hub has a chat panel to sit in. False when there are no projects.
+function openAny() {
+  if (!me || !sp() || !sp().list) return false;
+  const all = sp().list();
+  if (!all.length) return false;
+  let id = ""; try { id = localStorage.getItem("cadence:lastProject") || ""; } catch (e) {}
+  openChat(all.filter(function (x) { return x.id === id; })[0] || all[0], "");
+  return true;
+}
 function openChat(p, tid) {
   if (!me) return;
+  hubClose();
   build();
   cur = { p: p, tid: "", msgs: new Map(), pins: new Map(), picker: "", menu: "", unsub: null, oldest: null, hasMore: false };
   setTitle();
@@ -1735,6 +1749,7 @@ function openChat(p, tid) {
 }
 
 function close() {
+  hubClose();
   flushSeen();
   picked.clear();
   if (cur && cur.unsub) cur.unsub();
@@ -2099,6 +2114,7 @@ function openPrivate(id) {
   if (!me || !pvApi()) return;
   const all = pvApi().list();
   if (!all.length) return;
+  hubClose();
   pvBuild();
   const pick = pvInfo(id) || all[0];
   pv.kind = "note"; pv.mode.textContent = "Note"; pv.box.placeholder = "Write a note";
@@ -2202,7 +2218,7 @@ document.addEventListener("click", function (e) {
   if (tb && tb.dataset.tab !== "projects") close();
 });
 
-window.CadenceChat = { openPrivate: openPrivate, openProject: openProject, notice: notice, close: close, button: button, stageButton: stageButton, open: openChat, log: log, unreadFor: unreadFor, inbox: renderInbox, tiles: tiles };
+window.CadenceChat = { host: hostEl, openAny: openAny, openPrivate: openPrivate, openProject: openProject, notice: notice, close: close, button: button, stageButton: stageButton, open: openChat, log: log, unreadFor: unreadFor, inbox: renderInbox, tiles: tiles };
 
 document.addEventListener("visibilitychange", function () {
   if (document.visibilityState === "hidden") { flushSeen(); return; }
