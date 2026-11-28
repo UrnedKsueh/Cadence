@@ -2818,3 +2818,8 @@ body.hub-open { overflow: hidden; }
 .chat-me-txt strong, .chat-me-txt small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chat-me-txt small { color: var(--muted); }
 .chat-overlay .chat-drawer.chat-channels:has(> .chat-me) > .chat-drawer-panel { padding-bottom: 8px; }
+
+body:not(.pj-sheet) #panel-projects > * { display: none !important; }
+.hub:not(.hub-solo) .hub-pj { display: none; }
+.hub .hub-pj { display: flex; flex-direction: column; gap: 8px; padding: 0 12px 12px; }
+.hub .hub-pj .hub-label { padding: 6px 0 0; }

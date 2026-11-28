@@ -60,7 +60,11 @@ function build() {
   els.dms = mk("div", "hub-dms");
   els.me = mk("button", "hub-me"); els.me.type = "button";
   els.me.onclick = function () { if (me && window.CadenceProfile) window.CadenceProfile.open(me.uid, "You"); };
-  side.append(head, els.nav, mk("div", "hub-label", "Direct Messages"), els.dms, els.me);
+  els.pj = mk("div", "hub-pj");
+  els.pj.appendChild(mk("div", "hub-label", "Projects"));
+  els.pj.appendChild(textBtn("New project", function () { leaveFor("newProject"); }));
+  els.pj.appendChild(textBtn("Join with a code", function () { leaveFor("joinProject"); }, true));
+  side.append(head, els.nav, els.pj, mk("div", "hub-label", "Direct Messages"), els.dms, els.me);
 
   const top = mk("div", "hub-top");
   els.back = icoBtn("hub-ico hub-back", ICON.back, "Back", function () { show("home"); });
@@ -296,13 +300,20 @@ function open(opts) {
   document.dispatchEvent(new Event("cadence:hub"));
   root.querySelector(".hub-ico").focus();
 }
-function close() {
+function leaveFor(fn) {
+  close(true);
+  const api = window.CadenceSharedProjects;
+  if (api && api[fn]) api[fn]();
+}
+function close(stay) {
   if (!root || root.hidden) return;
+  const solo = root.classList.contains("hub-solo");
   stopMsgs(); root.hidden = true;
   if (hosted) hosted.classList.remove("chat-hubmode");
   hosted = null;
   document.body.classList.remove("hub-open");
   document.dispatchEvent(new Event("cadence:hub"));
+  if (solo && stay !== true && location.hash === "#projects" && window.showTab) window.showTab("home", true);
 }
 window.CadenceHub = { open: open, close: close, badge: badge, isOpen: function () { return !!root && !root.hidden; } };
 if (WIDE.addEventListener) WIDE.addEventListener("change", function () { if (root && !root.hidden && view === "home") show("home"); });

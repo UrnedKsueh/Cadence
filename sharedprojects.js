@@ -842,7 +842,9 @@ function enter() {
     }
     // Nothing to open from memory: the list may be stale, so look again before settling on the empty page.
     // When the fresh load finds a project it opens the chat (load() calls resumeTry while pendingEnter is set).
-    if (!loading && Date.now() - lastFetch > 3000) { pendingEnter = true; load(true); }
+    if (!loading && Date.now() - lastFetch > 3000) { pendingEnter = true; load(true); return false; }
+    if (loading) return false;
+    if (window.CadenceHub && window.CadenceHub.open) { window.CadenceHub.open(); return true; }
     return false;
   }
   let id = "";
@@ -1004,6 +1006,13 @@ function newProject() {
   if (f) { f.value = defaultProjectName(); f.focus(); f.select(); }
   const jl = $("pjJoinLink"); if (jl) jl.hidden = !!admin;
 }
+function joinProject() {
+  newProject();
+  $("sharedAdd").open = false;
+  $("sharedJoin").open = true;
+  const f = $("joinCode");
+  if (f) f.focus();
+}
 function closeSheet() {
   if (!document.body.classList.contains("pj-sheet")) return;
   document.body.classList.remove("pj-sheet");
@@ -1012,6 +1021,11 @@ function closeSheet() {
   $("sharedJoin").open = false;
   $("projectAdd").open = false;
   if (location.hash !== "#projects") $("panel-projects").hidden = true;
+  else setTimeout(function () {
+    const b = document.body;
+    if (projects.length || b.classList.contains("chat-open") || b.classList.contains("pj-sheet") || document.querySelector(".pj-page")) return;
+    if (window.CadenceHub && window.CadenceHub.open && !window.CadenceHub.isOpen()) window.CadenceHub.open();
+  }, 120);
 }
 window.addEventListener("cadence:private:added", function (e) {
   closeSheet();
@@ -1387,7 +1401,8 @@ window.CadenceSharedProjects = {
   addPeople: addPeople,
   show: showProject,
   enter: enter,
-  newProject: newProject
+  newProject: newProject,
+  joinProject: joinProject
 };
 
 // Refreshing the page on #projects: tabs.js ran before this file, so open the team chat once sign-in and projects have loaded.
@@ -1403,6 +1418,7 @@ function resumeTry() {
   const body = document.body;
   if (body.classList.contains("chat-open")) { pendingEnter = false; body.classList.remove("pj-resuming"); return; }
   const pnl = $("panel-projects");
+  if (window.CadenceHub && window.CadenceHub.isOpen && window.CadenceHub.isOpen()) { pendingEnter = false; resumeDone(); return; }
   if (!me || !loaded || !pnl || pnl.hidden || document.querySelector(".pj-page") || body.classList.contains("pj-sheet")) return;
   if (enter()) pendingEnter = false;
   // Nothing to open (no projects yet): show the normal Projects page
