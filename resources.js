@@ -8,7 +8,7 @@ import { getFirestore, doc, getDoc, deleteDoc, collection, query, orderBy, limit
 const db = getFirestore(getApp());
 const $ = function (id) { return document.getElementById(id); };
 const CATS = ["Tutorials", "References", "Software", "Inspiration", "Templates", "Other"];
-const TILE = ["#8fa8ff", "#c792ea", "#4fc3a1", "#f0b44c", "#5cc8e8", "#ff8a80"];
+const TILE = ["#7657E8", "#B98FDF", "#5FB8A0", "#D9A95B", "#62B5D1", "#E58A85"];
 const SAVED_KEY = "cadence:savedResources";
 
 let user = null;

@@ -199,6 +199,7 @@ async function paintLists() {
   });
   $("blockWrap").hidden = !bl.children.length;
   $("blockCount").textContent = String(bl.children.length);
+  document.dispatchEvent(new Event("cadence:friends"));
 }
 
 async function loadFriends() {
@@ -252,6 +253,7 @@ function showPerson(p) {
   else if (rel === "incoming") btn("Accept request", function () { accept(p.uid); });
   else if (rel === "outgoing") btn("Request sent. Cancel?", function () { dropRequest(me.uid + "_" + p.uid); }, true);
   else if (rel === "friends") {
+    btn("Message", function () { closePerson(); if (window.CadenceHub) window.CadenceHub.open({ dm: p.uid }); });
     btn("View Showcase", function () { viewShowcase(p, card); });
     btn("Remove", function () { unfriend(p); }, true);
   }
@@ -420,7 +422,13 @@ async function openByHandle(raw) {
 }
 window.CadenceProfile = { open: openProfile };
 // Friends list (read-only copy) for shared projects, and handle lookup for the top search
-window.CadenceFriends = { list: function () { return friends.slice(); }, find: openByHandle };
+window.CadenceFriends = {
+  list: function () { return friends.slice(); }, find: openByHandle,
+  incoming: function () { return incoming.slice(); }, outgoing: function () { return outgoing.slice(); },
+  accept: function (uid) { return accept(uid); },
+  decline: function (uid) { return dropRequest(uid + "_" + me.uid); },
+  cancel: function (uid) { return dropRequest(me.uid + "_" + uid); }
+};
 
 // ----- Sign-in wiring -----
 function badge() {

@@ -3,7 +3,7 @@ import { getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.
 import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 const db = getFirestore(getApp());
-export const COLORS = ["#4fc3a1", "#8fa8ff", "#f0b44c", "#ff8a80", "#c792ea", "#5cc8e8"];
+export const COLORS = ["#5FB8A0", "#7657E8", "#D9A95B", "#E58A85", "#B98FDF", "#62B5D1"];
 const cache = {};
 const pending = {};
 

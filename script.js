@@ -28,8 +28,8 @@ const STAGES = ["Script", "Storyboard", "Animatic", "Layout", "Animation",
   "Lighting & render", "Compositing", "Sound & edit", "Delivered"];
 const SHOT_STATUS = ["To do", "Blocking", "Spline", "Polish", "Review", "Render", "Done"];
 // Older saves used a single "Animating" status: treat it as Blocking
-const SHOT_STATUS_COLORS = { "To do": "#6b7683", "Blocking": "#e0a64f", "Spline": "#d9824f", "Polish": "#b86fd0",
-  "Review": "#5f9fe0", "Render": "#4fc3d9", "Done": "#4fc3a1" };
+const SHOT_STATUS_COLORS = { "To do": "#7D7A93", "Blocking": "#D4A55E", "Spline": "#D08B5E", "Polish": "#B07FCF",
+  "Review": "#6B9FD6", "Render": "#62B5D1", "Done": "#5FB8A0" };
 // These match the limits in the Firestore rules. Past them, cloud sync would be rejected.
 const LIMITS = { deadlines: 200, projects: 10, showcase: 20 };
 const FPS_CHOICES = [12, 23.976, 24, 25, 29.97, 30, 60];

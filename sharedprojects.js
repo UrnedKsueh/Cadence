@@ -734,7 +734,7 @@ function showProject(id, stageId) {
 
 // ---- Messages-style project list (v18) ----
 let pjFilter = "";
-const TILE_COLORS = ["#4fc3a1", "#8fa8ff", "#f0b44c", "#ff8a80", "#c792ea", "#5cc8e8"];
+const TILE_COLORS = ["#5FB8A0", "#7657E8", "#D9A95B", "#E58A85", "#B98FDF", "#62B5D1"];
 function tileColor(name) {
   let h = 0; for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
   return TILE_COLORS[h % TILE_COLORS.length];

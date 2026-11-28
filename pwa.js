@@ -7,13 +7,13 @@
     const bar = document.createElement("div");
     bar.id = "updateBar";
     bar.setAttribute("role", "status");
-    bar.style.cssText = "position:fixed;left:12px;right:12px;bottom:84px;z-index:50;display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:12px;background:#4fc3a1;color:#0e1319;font:600 14px system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.35)";
+    bar.style.cssText = "position:fixed;left:12px;right:12px;bottom:84px;z-index:50;display:flex;gap:12px;align-items:center;justify-content:space-between;padding:12px 14px;border-radius:12px;background:#7657E8;color:#fff;font:600 14px system-ui,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.35)";
     const msg = document.createElement("span");
     msg.textContent = "A new version of Cadence is ready.";
     const btn = document.createElement("button");
     btn.type = "button";
     btn.textContent = "Refresh";
-    btn.style.cssText = "border:0;border-radius:8px;padding:8px 14px;font:inherit;background:#0e1319;color:#fff;cursor:pointer";
+    btn.style.cssText = "border:0;border-radius:8px;padding:8px 14px;font:inherit;background:#191923;color:#fff;cursor:pointer";
     btn.onclick = function () { worker.postMessage("SKIP_WAITING"); };
     bar.appendChild(msg);
     bar.appendChild(btn);

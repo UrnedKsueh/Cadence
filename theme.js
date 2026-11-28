@@ -10,7 +10,7 @@
     const s = saved();
     if (s) root.setAttribute("data-theme", s); else root.removeAttribute("data-theme");
     const meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.setAttribute("content", effective() === "light" ? "#f5f7fa" : "#0e1319");
+    if (meta) meta.setAttribute("content", effective() === "light" ? "#F6F5F9" : "#191923");
     const btn = document.getElementById("themeBtn");
     if (btn) {
       btn.setAttribute("aria-label", effective() === "light" ? "Light mode is on. Switch to dark theme" : "Dark mode is on. Switch to light theme");

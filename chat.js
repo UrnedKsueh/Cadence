@@ -1639,7 +1639,7 @@ async function submit() {
 
 // Landscape project rail: one tile per project, like servers in Discord
 function railColor(name) {
-  const cols = ["#4fc3a1", "#8fa8ff", "#f0b44c", "#ff8a80", "#c792ea", "#5cc8e8"];
+  const cols = ["#5FB8A0", "#7657E8", "#D9A95B", "#E58A85", "#B98FDF", "#62B5D1"];
   let h = 0; for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
   return cols[h % cols.length];
 }
@@ -1647,6 +1647,14 @@ function drawRail() {
   if (!ui || !ui.prail || !cur || !sp() || !sp().list) return;
   const rail = ui.prail;
   rail.textContent = "";
+  const logo = mk("button", "chat-rail-btn chat-rail-logo");
+  logo.type = "button"; logo.title = "Friends and messages"; logo.setAttribute("aria-label", "Friends and messages");
+  const li = document.createElement("img"); li.src = "logo.png"; li.alt = ""; logo.appendChild(li);
+  const hb = window.CadenceHub ? window.CadenceHub.badge() : 0;
+  if (hb) logo.appendChild(mk("span", "chat-ptile-badge", hb > 99 ? "99+" : String(hb)));
+  logo.onclick = function () { if (window.CadenceHub) window.CadenceHub.open(); };
+  rail.appendChild(logo);
+  rail.appendChild(mk("div", "chat-rail-sep"));
   const all = sp().list();
   all.forEach(function (p) {
     const b = mk("button", "chat-ptile" + (p.id === cur.p.id ? " on" : ""));
@@ -2223,3 +2231,6 @@ onAuthStateChanged(getAuth(), async function (user) {
   if (me) await pullSeen();
   if (sp() && sp().rerender) sp().rerender();
 });
+
+// Keep the logo badge on the rail current when new messages or requests arrive
+document.addEventListener("cadence:hub", function () { if (ui && cur && !ui.root.hidden) drawRail(); });

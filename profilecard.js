@@ -2,7 +2,7 @@
 // Banner, theme and links are saved with your profile by social.js; this file only draws them.
 (function () {
   "use strict";
-  var THEMES = ["", "#4fc3a1", "#8fa8ff", "#f0b44c", "#ff8a80", "#c792ea", "#5cc8e8"];
+  var THEMES = ["", "#5FB8A0", "#7657E8", "#D9A95B", "#E58A85", "#B98FDF", "#62B5D1"];
   var $ = function (id) { return document.getElementById(id); };
   if (!$("pcMain")) return;
 

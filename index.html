@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0e1319">
+<meta name="theme-color" content="#191923">
 <meta name="description" content="Plan shots, track deadlines and show off your finished animation work.">
 <title>Cadence</title>
 <link rel="icon" type="image/png" href="favicon.png">
@@ -48,6 +48,7 @@
     <div class="top-actions">
     <button type="button" class="avatar-btn bell-btn" id="projectsBtn" aria-label="Projects" aria-controls="panel-projects" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></button>
     <div class="bell-wrap">
+    <button type="button" class="avatar-btn bell-btn" id="hubBtn" aria-label="Friends and messages" hidden><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/></svg><span class="bell-count" id="hubBadge" hidden>0</span></button>
     <button type="button" class="avatar-btn bell-btn" id="bellBtn" aria-label="Notifications" aria-haspopup="dialog" aria-expanded="false" aria-controls="notifPanel"><svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><span class="bell-count" id="bellCount" hidden>0</span></button>
     <div class="notif-panel" id="notifPanel" role="dialog" aria-label="Notifications" tabindex="-1" hidden>
       <div class="notif-head">
@@ -712,6 +713,7 @@
 <script type="module" src="share.js"></script>
 <script type="module" src="avatars.js"></script>
 <script type="module" src="social.js"></script>
+<script type="module" src="hub.js"></script>
 <script type="module" src="feed.js"></script>
 <script type="module" src="resources.js"></script>
 <script type="module" src="sharedprojects.js"></script>
